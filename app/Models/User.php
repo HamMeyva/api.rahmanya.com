@@ -152,8 +152,11 @@ class User extends Authenticatable
             return $value;
         }
 
-        // Dosya yolunu URL'ye çevir
-        return Storage::disk('public')->url($value);
+        // Relative path ise BunnyCDN URL'i ile birleştir
+        $cdnUrl = config('bunnycdn-storage.cdn_url', env('BUNNYCDN_STORAGE_CDN_URL'));
+        $cleanPath = ltrim($value, '/');
+
+        return rtrim($cdnUrl, '/') . '/' . $cleanPath;
     }
 
     public function coin_transactions(): HasMany

@@ -374,15 +374,23 @@ class UserResolver
                     throw new \GraphQL\Error\Error('Invalid base64 content');
                 }
 
-                // Generate unique filename
-                $fileName = \Illuminate\Support\Str::uuid() . '.' . $extension;
-                $path = 'users/' . $user->id . '/avatar/' . $fileName;
+                // Upload to BunnyCDN
+                $bunnyCdn = new \App\Services\BunnyCdnService();
+                $guid = \Illuminate\Support\Str::uuid();
+                $path = 'users/' . $user->id . '/avatar/' . $guid . '.' . $extension;
 
-                // Store file in storage
-                \Illuminate\Support\Facades\Storage::disk('public')->put($path, $fileData);
+                // Upload to BunnyCDN Storage
+                $uploadSuccess = $bunnyCdn->uploadToStorage($path, $fileData);
 
-                // Update avatar path in input
-                $input['avatar'] = $path;
+                if (!$uploadSuccess) {
+                    throw new \GraphQL\Error\Error('Avatar BunnyCDN\'e yüklenirken bir hata oluştu');
+                }
+
+                // Get the CDN URL
+                $avatarUrl = $bunnyCdn->getStorageUrl($path);
+
+                // Update avatar URL in input
+                $input['avatar'] = $avatarUrl;
 
             } catch (\Exception $e) {
                 throw new \GraphQL\Error\Error('Avatar güncellenirken bir hata oluştu: ' . $e->getMessage());

@@ -151,10 +151,22 @@ class UserController extends Controller
         if ($request->input('avatar_changed') == 1 && $request->hasFile('avatar')) {
             $file = $request->file('avatar');
             $extension = $file->getClientOriginalExtension();
-            $fileName = Str::uuid() . '.' . $extension;
-            $avatarPath = $file->storeAs("users/{$user->id}/avatar", $fileName, 'public');
+            $guid = Str::uuid();
+            $path = "users/{$user->id}/avatar/{$guid}.{$extension}";
 
-            $validatedData['avatar'] = $avatarPath;
+            // Upload to BunnyCDN
+            $bunnyCdn = new \App\Services\BunnyCdnService();
+            $uploadSuccess = $bunnyCdn->uploadToStorage($path, file_get_contents($file->getRealPath()));
+
+            if (!$uploadSuccess) {
+                return response()->json([
+                    'message' => 'Avatar BunnyCDN\'e yüklenirken bir hata oluştu.'
+                ], 500);
+            }
+
+            // Get the CDN URL
+            $avatarUrl = $bunnyCdn->getStorageUrl($path);
+            $validatedData['avatar'] = $avatarUrl;
         }
 
         if ($request->input('remove_avatar') == 1) {
