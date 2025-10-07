@@ -1,0 +1,47 @@
+# İki faktörlü kimlik doğrulama için GraphQL şeması
+
+# --- 📌 Yanıt Modelleri ---
+type TwoFactorAuthSecret {
+    secret: String!
+    qrCodeUrl: String!
+    backupCodes: [String!]!
+}
+
+type TwoFactorAuthResponse {
+    success: Boolean!
+    message: String!
+}
+
+# --- 📌 Input Modelleri ---
+input VerifyTwoFactorCodeInput {
+    code: String!
+}
+
+input VerifyBackupCodeInput {
+    code: String!
+}
+
+# --- 📌 Sorgu ve Mutasyonlar ---
+extend type Query {
+    getTwoFactorStatus: Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\TwoFactorAuthResolver@getTwoFactorStatus")
+}
+
+extend type Mutation {
+    generateTwoFactorSecret: TwoFactorAuthSecret!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\TwoFactorAuthResolver@generateSecret")
+
+    verifyTwoFactorCode(input: VerifyTwoFactorCodeInput! @spread): TwoFactorAuthResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\TwoFactorAuthResolver@verifyCode")
+
+    disableTwoFactorAuth: TwoFactorAuthResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\TwoFactorAuthResolver@disableTwoFactorAuth")
+
+    verifyBackupCode(input: VerifyBackupCodeInput! @spread): TwoFactorAuthResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\TwoFactorAuthResolver@verifyBackupCode")
+}

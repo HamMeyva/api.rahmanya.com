@@ -1,0 +1,63 @@
+# --- 📌 Start::Response Models ---
+type CoinWithdrawalRequest {
+    id: ID!
+    user_id: ID!
+    user: User @belongsTo
+    coin_amount: Int!
+    coin_unit_price: Float!
+    coin_total_price: Float!
+    currency_id: Int!
+    currency: Currency @belongsTo
+    status_id: Int!
+    get_status: String!
+    reject_reason: String
+    approved_at: DateTime 
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type CoinWithdrawalRequestStatus {
+  id: Int!
+  name: String!
+}
+
+type CreateCoinWithdrawalRequestResponse {
+    success: Boolean!
+    message: String
+    withdrawal_request: CoinWithdrawalRequest
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input CreateCoinWithdrawalRequestInput {
+    coin_amount: Int!
+    currency_id: Int!
+}
+
+input GetCoinWithdrawalRequestInput {
+    page: Int!
+    limit: Int!
+    status_id: Int
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    getCoinWithdrawalRequests(input: GetCoinWithdrawalRequestInput): [CoinWithdrawalRequest!]
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\CoinWithdrawalRequestResolver@index")
+        
+    getCoinWithdrawalRequestStatuses: [CoinWithdrawalRequestStatus!]! 
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\CoinWithdrawalRequestResolver@getStatuses")
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Çekim talebi oluşturmak
+    createCoinWithdrawalRequest(input: CreateCoinWithdrawalRequestInput!): CreateCoinWithdrawalRequestResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\CoinWithdrawalRequestResolver@store")
+}
+# --- 📌 End::Mutations ---

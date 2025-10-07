@@ -1,0 +1,8 @@
+# --- 📌 Start::Response Models ---
+type Advertiser {
+    id: ID!
+    name: String!
+    email: String!
+    logo_path: String
+}
+# --- 📌 End::Response Models ---

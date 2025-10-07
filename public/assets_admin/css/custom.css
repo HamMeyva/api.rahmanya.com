@@ -1,0 +1,19 @@
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+.blink_me {
+    animation: blink 3s infinite;
+}
+
+/*.btn-primary {*/
+/*    background-color: #2D922C !important;*/
+/*    border-color: #ffffff !important;*/
+/*}*/
+
+/*.btn-check:active+.btn.btn-primary, .btn-check:checked+.btn.btn-primary, .btn.btn-primary.active, .btn.btn-primary.show, .btn.btn-primary:active:not(.btn-active), .btn.btn-primary:focus:not(.btn-active), .btn.btn-primary:hover:not(.btn-active), .show>.btn.btn-primary{*/
+/*    background-color: #2ba64f !important;*/
+/*    border-color: #ffffff !important;*/
+/*}*/

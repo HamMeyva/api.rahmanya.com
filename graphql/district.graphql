@@ -1,0 +1,19 @@
+# --- 📌 Start::Response Models ---
+type District {
+    id: ID!
+    name: String!
+    city: City @belongsTo
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+# --
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+# --
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+# --
+# --- 📌 End::Mutations ---

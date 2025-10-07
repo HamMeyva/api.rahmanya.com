@@ -1,0 +1,229 @@
+scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+# --- 📌 Kullanıcı Modeli ---
+type User {
+    id: ID!
+    parent_user_id: ID
+    account_type: String
+    collection_uuid: String
+    name: String!
+    surname: String!
+    nickname: String
+    gender: String
+    gender_id: Int
+    birthday: DateTime
+    bio: String
+    slogan: String
+    email: String!
+    phone: String
+    avatar: String
+    preferred_language_id: Int
+    primary_team_id: Int
+    agora_uid: Int
+    latitude: Float
+    longitude: Float
+    fcm_token: String
+    is_frozen: Boolean
+    general_push_notification: Boolean
+    like_notification: Boolean
+    comment_notification: Boolean
+    follower_notification: Boolean
+    taggable_notification: Boolean
+    taggable: Boolean
+    commentable: Boolean
+    email_verified_at: DateTime
+    phone_verified_at: DateTime
+    is_verified: Boolean
+    is_email_verified: Boolean
+    is_phone_verified: Boolean
+    two_factor_enabled: Boolean
+    has_active_punishment: Boolean
+    active_stories_count: Int!
+    has_active_stories: Boolean!
+    has_active_live_stream: Boolean!
+    active_live_stream: AgoraChannel
+    is_online: Boolean!
+    last_seen_at: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+    deleted_at: DateTime
+
+    # Counts
+    # Not: follower_count ve following_count following.graphql'e taşındı
+    video_count: Int
+
+    # Relationships
+    primary_team: Team @hasOne(relation: "primary_team")
+    user_teams: [Team!] @belongsToMany(relation: "user_teams")
+    teams: [Team!] @belongsToMany(relation: "user_teams")
+}
+
+type Team {
+    id: ID!
+    name: String!
+    logo: String
+    created_at: DateTime!
+    updated_at: DateTime!
+    colors: TeamColors!
+}
+
+type TeamColors {
+    color1: String!
+    color2: String!
+}
+
+type SearchCard @model {
+    id: ID!
+    title: String!
+    image_url: String!
+    search_query: String!
+    order: Int
+    is_active: Boolean!
+    click_count: Int!
+    category: String
+    created_at: DateTime!
+    updated_at: DateTime
+}
+
+type UserBlock @model {
+    id: ID!
+    blocker: User! @belongsTo(relation: "blocker")
+    blocked: User! @belongsTo(relation: "blocked")
+    reason: String
+    created_at: DateTime!
+    updated_at: DateTime
+}
+
+# --- 📌 Yanıt Modelleri ---
+type UserBlockResponse {
+    success: Boolean!
+    message: String
+    block: UserBlock
+}
+
+type SearchResponse {
+    videos: [Video!]
+    users: [User!]
+    tags: [String!]
+    locations: [String!]
+    type: SearchType!
+    page: Int!
+    per_page: Int!
+    total: Int!
+}
+
+type SearchCardsResponse {
+    cards: [SearchCard!]!
+    total: Int!
+}
+
+# --- 📌 Input Modelleri ---
+input SearchInput {
+    query: String!
+    type: SearchType!
+    page: Int
+    per_page: Int
+}
+
+enum SearchType {
+    USERS
+    TAGS
+    LOCATIONS
+    VIDEO
+    VIDEOS
+}
+
+input SearchCardInput {
+    title: String!
+    image_url: String!
+    search_query: String!
+    order: Int
+    is_active: Boolean
+    category: String
+}
+
+input UpdateSearchCardInput {
+    title: String
+    image_url: String
+    search_query: String
+    order: Int
+    is_active: Boolean
+    category: String
+}
+
+input UserBlockInput {
+    blocked_id: ID!
+    reason: String
+}
+
+
+input UpdateUserProfileInput {
+    name: String
+    surname: String
+    nickname: String
+    email: String
+    phone: String
+    gender: String
+    gender_id: Int
+    birthday: String
+    bio: String
+    slogan: String
+    fcm_token: String
+    avatar: String
+    primary_team_id: Int
+    user_team_ids: [Int!]
+    preferred_language_id: Int
+}
+
+# --- 📌 Sorgular (Queries) ---
+extend type Query {
+    # Bağlantılı hesapları getirir
+    getLinkedAccounts: [User!]
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@getLinkedAccounts")
+    # Kullanıcı sorguları
+    me: User @auth
+    getUser(id: ID!): User
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@getUser")
+    getUsers: [User!]! @all @guard(with: ["sanctum"])
+    getUserBlocks: [UserBlock!]!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@getUserBlocks")
+
+    # Arama sorguları
+    search(input: SearchInput!): SearchResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\SearchResolver@search")
+    getSearchCards(category: String): SearchCardsResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\SearchResolver@getSearchCards")
+}
+
+# --- 📌 Mutasyonlar (Mutations) ---
+extend type Mutation {
+    # Search card mutations
+    createSearchCard(input: SearchCardInput!): SearchCard!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\SearchResolver@createSearchCard")
+    updateSearchCard(id: ID!, input: UpdateSearchCardInput!): SearchCard!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\SearchResolver@updateSearchCard")
+    deleteSearchCard(id: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\SearchResolver@deleteSearchCard")
+    incrementSearchCardClickCount(id: ID!): Boolean!
+        @field(resolver: "App\\GraphQL\\Resolvers\\SearchResolver@incrementSearchCardClick")
+
+    # Kullanıcı etkileşim mutasyonları
+    blockUser(input: UserBlockInput!): UserBlockResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@blockUser")
+
+    unblockUser(blockedId: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@unblockUser")
+
+    # Kullanıcı profili güncelleme
+    updateUserProfile(input: UpdateUserProfileInput!): User!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@updateUserProfile")
+}

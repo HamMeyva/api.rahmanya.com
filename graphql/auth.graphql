@@ -1,0 +1,173 @@
+# --- 📌 Start::Response Models ---
+type AuthPayload {
+    access_token: String!
+    token_type: String!
+    expires_in: Int!
+    user: User!
+}
+
+type TeamsResponse {
+    success: Boolean!
+    teams: [Team!]!
+}
+
+type GenericResponse {
+    success: Boolean!
+    message: String
+}
+
+type ChangePasswordResponse {
+    status: String!
+    message: String!
+}
+
+type LogoutResponse {
+    success: Boolean!
+    message: String
+}
+
+type DisconnectSessionResponse {
+    success: Boolean!
+    message: String
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input ChangePasswordInput {
+    current_password: String!
+    new_password: String!
+    new_password_confirmation: String!
+}
+
+input RequestAccountDeletionInput {
+    reason: String
+}
+input LoginInput {
+    nickname: String!
+    password: String!
+    fcm_token: String!
+    device_type: String
+    device_os: String
+    device_os_version: String
+    device_model: String
+    device_brand: String
+    device_unique_id: String
+    remember_me: Boolean
+}
+
+input SendResetPasswordLinkInput {
+    email: String!
+}
+
+input ResetPasswordInput {
+    token: String!
+    email: String!
+    password: String!
+    password_confirmation: String!
+}
+
+input VerifyEmailInput {
+    id: ID!
+    hash: String!
+}
+
+input VerifyPhoneInput {
+    phone: String!
+    otp: String!
+}
+
+input SendOTPInput {
+    phone: String!
+}
+
+input RegisterInput {
+    name: String!
+    surname: String!
+    nickname: String!
+    gender_id: Int!
+    birthday: String!
+    email: String!
+    phone: String!
+    password: String!
+    password_confirmation: String!
+    fcm_token: String!
+    primary_team_id: Int!
+    user_teams: [Int!]
+    preferred_language_id: Int!
+    device_type: String!
+    device_os: String!
+    device_os_version: String!
+    device_model: String!
+    device_brand: String!
+    device_unique_id: String!
+}
+
+input DisconnectSessionInput {
+    socket_id: String!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    fetchAllTeams: TeamsResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\TeamResolver@fetchAllTeams")
+    fetchUserProfile: User
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\UserResolver@getAuthenticatedUser"
+        )
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    login(input: LoginInput!): AuthPayload!
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@login")
+    register(input: RegisterInput!): AuthPayload!
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@register")
+    logout: LogoutResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@logout")
+    disconnectSession(input: DisconnectSessionInput!): DisconnectSessionResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@disconnectSession")
+    refreshToken: AuthPayload!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@refreshToken")
+    sendResetPasswordLink(input: SendResetPasswordLinkInput!): GenericResponse!
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\AuthResolver@sendResetPasswordLink"
+        )
+    resetPassword(input: ResetPasswordInput!): GenericResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@resetPassword")
+    verifyEmail(input: VerifyEmailInput!): GenericResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@verifyEmail")
+    resendEmailVerification: GenericResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\AuthResolver@resendEmailVerification"
+        )
+    verifyPhone(input: VerifyPhoneInput!): GenericResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@verifyPhone")
+    sendOTP(input: SendOTPInput!): GenericResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@sendOTP")
+    terminateOtherSessions(device_id: String!): GenericResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\AuthResolver@terminateOtherSessions"
+        )
+
+    changePassword(
+        input: ChangePasswordInput! @spread
+    ): ChangePasswordResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@changePassword")
+    requestAccountDeletion(
+        input: RequestAccountDeletionInput!
+    ): GenericResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\AuthResolver@requestAccountDeletion"
+        )
+}
+# --- 📌 End::Mutations ---

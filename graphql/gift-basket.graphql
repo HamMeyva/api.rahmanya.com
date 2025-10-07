@@ -1,0 +1,48 @@
+# --- 📌 Start::Response Models ---
+type GiftBasket {
+    id: ID!
+    user_id: ID!
+    user: User @belongsTo
+    gift_id: ID!
+    gift: Gift @belongsTo
+    custom_unit_price: Float
+    quantity: Int!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+type AddGiftToBasketResponse {
+    success: Boolean!
+    message: String
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input AddGiftToBasketInput {
+    gift_id: ID!
+    quantity: Int!
+    custom_unit_price: Int
+}
+
+input GetGiftBasketInput {
+    page: Int!
+    limit: Int!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    # Kullanıcının sepetindeki hediyeleri getir
+    getGiftBasket(input: GetGiftBasketInput): [GiftBasket!]
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\GiftBasketResolver@getGiftBasket")
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Sepete hediye ekle
+    addGiftToBasket(input: AddGiftToBasketInput!): AddGiftToBasketResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\GiftBasketResolver@addGiftToBasket")
+}
+# --- 📌 End::Mutations ---

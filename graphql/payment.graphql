@@ -1,0 +1,19 @@
+type Payment {
+  id: ID!
+  payable_type: String!
+  payable_id: ID!
+  discount_amount: Float
+  total_amount: Float!
+  paid_at: DateTime
+  status_id: Int!
+  get_status: String
+  transaction_id: String
+  refund_id: String
+  channel_id: Int
+  get_channel: String
+  failure_reason: String
+  user: User @belongsTo
+  currency: Currency @belongsTo
+  iyzico_payment_id: String
+  conversation_data: String
+}

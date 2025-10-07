@@ -1,0 +1,61 @@
+# --- 📌 Start::Response Models ---
+type Response {
+    success: Boolean
+    message: String
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input StoreVideoFromEditorInput {
+    videos: [Upload!]!
+    thumbnail_duration: Int
+    thumbnail_image: Upload
+    embed_texts: [EmbedTextInput!]
+    embed_audios: [EmbedAudioInput!]
+}
+
+input EmbedTextInput {
+    text: String!
+    start: Int!
+    end: Int!
+    x: Int!
+    y: Int!
+    size: Int!
+    font: String
+    color: String!
+    background: Boolean
+    background_color: String
+}
+
+input EmbedAudioInput {
+    music_id: ID!
+    audio_start_offset: Int!
+    audio_duration: Int!
+    volume: Int!
+    video_start_offset: Int!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+# --
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    storeVideoFromEditor(
+        input: StoreVideoFromEditorInput!
+    ): Response!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Video\\VideoEditorResolver@storeVideoFromEditor"
+        )
+
+    downloadVideoFromEditor(
+        input: StoreVideoFromEditorInput!
+    ): Response!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Video\\VideoEditorResolver@downloadVideoFromEditor"
+        )
+}
+# --- 📌 End::Mutations ---

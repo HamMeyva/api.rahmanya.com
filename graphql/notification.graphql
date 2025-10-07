@@ -1,0 +1,78 @@
+type Notification {
+    _id: ID!
+    user_id: ID!
+    type: String!
+    data: NotificationData
+    read_at: DateTime
+    created_at: DateTime
+    updated_at: DateTime
+}
+
+type NotificationData {
+    title: String
+    body: String
+    image_url: String
+    sender_id: ID
+    sender_name: String
+    sender_avatar: String
+    target_id: ID
+    target_type: String
+    action: String
+    extra: [NotificationExtra]
+}
+
+type NotificationExtra {
+    key: String!
+    value: String
+}
+
+type NotificationPagination {
+    data: [Notification!]!
+    paginatorInfo: PaginatorInfo!
+}
+
+input MarkNotificationAsReadInput {
+    id: ID!
+}
+
+input DeleteNotificationInput {
+    id: ID!
+}
+
+extend type Query {
+    notifications(
+        first: Int = 15
+        page: Int
+        filter: NotificationFilterInput
+    ): NotificationPagination! @guard(with: ["sanctum"]) @paginate(builder: "App\\GraphQL\\Resolvers\\NotificationResolver@notifications")
+
+    notification(id: ID! @eq): Notification @guard(with: ["sanctum"]) @find
+
+    getAllNotifications(
+        limit: Int = 15
+        page: Int
+    ): [Notification!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\NotificationResolver@getAllNotifications")
+}
+
+input NotificationFilterInput {
+    read: Boolean
+    type: [String]
+}
+
+extend type Mutation {
+    markNotificationAsRead(input: MarkNotificationAsReadInput! @spread): Notification
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\NotificationResolver@markNotificationAsRead")
+
+    markAllNotificationsAsRead: Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\NotificationResolver@markAllNotificationsAsRead")
+
+    deleteNotification(input: DeleteNotificationInput! @spread): Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\NotificationResolver@deleteNotification")
+
+    deleteAllNotifications: Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\NotificationResolver@deleteAllNotifications")
+}

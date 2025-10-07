@@ -1,0 +1,37 @@
+# --- 📌 Start::Response Models ---
+type AdImpression {
+    id: ID!
+    ad_id: ID!
+    user_id: ID!
+    duration: Int!
+    is_completed: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type CreateAdImpressionResponse {
+    success: Boolean!
+    message: String
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input CreateAdImpressionInput {
+    ad_id: ID!
+    duration: Int!
+    is_completed: Boolean!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+# --
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Reklam izlenmesi ekle
+    createAdImpression(input: CreateAdImpressionInput!): CreateAdImpressionResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\AdImpressionResolver@store")
+}
+# --- 📌 End::Mutations ---

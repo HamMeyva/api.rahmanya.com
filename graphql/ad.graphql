@@ -1,0 +1,47 @@
+# --- 📌 Start::Response Models ---
+type Ad {
+    id: ID!
+    advertiser_id: ID!
+    advertiser: Advertiser @belongsTo
+    title: String
+    description: String
+    redirect_url: String
+    media_type_id: ID
+    get_media_type: String
+    media_path: String
+    video_guid: String
+    media_url: String
+    status_id: ID!
+    payment_status_id: ID!
+    paid_at: DateTime
+    show_start_time: DateTime!
+    show_end_time: DateTime!
+
+    total_budget: Float!
+    total_hours: Int!
+    bid_amount: Float!
+
+    target_country_id: ID!
+    target_country: Country @belongsTo
+    target_language_id: ID!
+    #target_language: Language @belongsTo
+    target_cities: [City] @belongsToMany
+
+    impressions: Int!
+    clicks: Int!
+    ctr: Int!
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+# --
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+# --
+
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+# --
+# --- 📌 End::Mutations ---

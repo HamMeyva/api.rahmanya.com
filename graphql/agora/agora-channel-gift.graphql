@@ -1,0 +1,71 @@
+# --- 📌 Start::Response Models ---
+type AgoraChannelGift {
+    id: ID!
+    agora_channel_id: Int!
+    gift_id: Int!
+    gift_data: GiftData
+    user_id: String!
+    user_data: UserData
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type GiftData {
+    id: ID
+    image_path: String
+    video_path: String
+    name: String
+    slug: String
+    price: Int
+    is_discount: Boolean
+    discounted_price: Int
+}
+
+type UserData {
+    id: ID
+    name: String
+    surname: String
+    nickname: String
+    email: String
+    phone: String
+}
+
+type SendGiftToStreamResponse {
+    success: Boolean!
+    message: String
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input SendGiftToStreamInput {
+    agora_channel_id: ID!
+    recipient_user_id: ID!
+    gift_basket_id: ID!
+    quantity: Int!
+}
+
+input GetGiftsByStreamInput {
+    agora_channel_id: ID!
+    limit: Int
+    page: Int
+    dir: String
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    # Canlı yayın hediye listesi
+    getGiftsByStream(input: GetGiftsByStreamInput!): [AgoraChannelGift!]
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraGiftResolver@getGiftsByChannelId")
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Yayına hediye gönder
+    sendGiftToStream(input: SendGiftToStreamInput!): SendGiftToStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraGiftResolver@sendGiftToStream")
+}
+# --- 📌 End::Mutations ---

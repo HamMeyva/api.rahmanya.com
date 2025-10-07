@@ -1,0 +1,12 @@
+type Gift {
+    id: ID!
+    is_active: Boolean!
+    image_path: String
+    video_path: String
+    name: String!
+    slug: String!
+    price: Int!
+    is_discount: Boolean!
+    discounted_price: Int
+    team_id: ID
+}

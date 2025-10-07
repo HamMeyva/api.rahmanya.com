@@ -1,0 +1,64 @@
+# --- 📌 Start::Response Models ---
+type VideoReport {
+    id: ID!
+
+    entity_type: String!
+    entity_id: ID!
+
+    user_id: ID!
+    user: User @belongsTo
+
+    status_id: Int!
+    get_status: String!
+    get_status_color: String!
+
+    report_problem_category_id: ID
+    report_problem_category: ReportProblemCategory @belongsTo
+
+    message: String!
+    admin_response: String
+    admin_id: ID
+    admin: Admin @belongsTo
+
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type ReportVideoResponse {
+    success: Boolean!
+    message: String
+    data: VideoReport
+}
+
+type MyVideoReportsResponse {
+    success: Boolean!
+    message: String
+    data: [VideoReport!]
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input ReportVideoInput {
+    video_id: ID!
+    report_problem_category_id: ID
+    message: String!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    myVideoReports: MyVideoReportsResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Video\\VideoReportResolver@myReports"
+        )
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    reportVideo(input: ReportVideoInput!): ReportVideoResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Video\\VideoReportResolver@report")
+}
+# --- 📌 End::Mutations ---

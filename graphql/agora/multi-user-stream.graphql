@@ -1,0 +1,96 @@
+# Çoklu kullanıcı canlı yayın sistemi için GraphQL şeması
+
+# --- 📌 Start::Response Models ---
+type InviteUserToStreamResponse {
+    success: Boolean!
+    message: String
+    invite_id: ID
+}
+
+type AcceptStreamInviteResponse {
+    success: Boolean!
+    message: String
+    token: String
+    channel_name: String
+    broadcaster_id: ID
+}
+
+type RejectStreamInviteResponse {
+    success: Boolean!
+    message: String
+}
+
+type StreamInvite {
+    id: ID!
+    stream_id: ID!
+    inviter_id: ID!
+    invitee_id: ID!
+    status: String!
+    inviter: User @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@user")
+    invitee: User @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@user")
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Kullanıcıyı canlı yayına davet et
+    inviteUserToStream(
+        channelName: String!,
+        userId: ID!
+    ): InviteUserToStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraMultiUserResolver@inviteUserToStream"
+        )
+
+    # Canlı yayın davetini kabul et
+    acceptStreamInvite(
+        channelName: String!,
+        inviterId: ID!
+    ): AcceptStreamInviteResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraMultiUserResolver@acceptStreamInvite"
+        )
+
+    # Canlı yayın davetini reddet
+    rejectStreamInvite(
+        channelName: String!,
+        inviterId: ID!
+    ): RejectStreamInviteResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraMultiUserResolver@rejectStreamInvite"
+        )
+        
+    # Kullanıcıyı canlı yayından çıkar (yayıncı veya moderatör tarafından)
+    removeUserFromStream(
+        channelName: String!,
+        userId: ID!
+    ): Boolean!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraMultiUserResolver@removeUserFromStream"
+        )
+}
+# --- 📌 End::Mutations ---
+
+# --- 📌 Start::Query --- 
+extend type Query {
+    # Kullanıcının bekleyen davetlerini getir
+    pendingStreamInvites: [StreamInvite!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraMultiUserResolver@pendingStreamInvites"
+        )
+        
+    # Yayındaki aktif katılımcıları getir
+    streamParticipants(channelName: String!): [LiveStreamViewer!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraMultiUserResolver@streamParticipants"
+        )
+}
+# --- 📌 End::Query ---

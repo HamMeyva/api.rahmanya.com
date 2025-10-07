@@ -1,0 +1,64 @@
+# --- 📌 Start::Response Models ---
+type AgoraChannelReport {
+    id: ID!
+
+    entity_type: String!
+    entity_id: ID!
+
+    user_id: ID!
+    user: User @belongsTo
+
+    status_id: Int!
+    get_status: String!
+    get_status_color: String!
+
+    report_problem_category_id: ID
+    report_problem_category: ReportProblemCategory @belongsTo
+
+    message: String!
+    admin_response: String
+    admin_id: ID
+    admin: Admin @belongsTo
+
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type ReportAgoraChannelResponse {
+    success: Boolean!
+    message: String
+    data: AgoraChannelReport
+}
+
+type MyAgoraChannelReportsResponse {
+    success: Boolean!
+    message: String
+    data: [AgoraChannelReport!]
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input ReportAgoraChannelInput {
+    agora_channel_id: ID!
+    report_problem_category_id: ID
+    message: String!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    myAgoraChannelReports: MyAgoraChannelReportsResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraChannelReportResolver@myReports"
+        )
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    reportAgoraChannel(input: ReportAgoraChannelInput!): ReportAgoraChannelResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraChannelReportResolver@report")
+}
+# --- 📌 End::Mutations ---

@@ -1,0 +1,93 @@
+# --- 📌 Start::Response Models ---
+type PunishmentCategory {
+    id: ID!
+    name: String!
+    parent_id: ID
+    parent: PunishmentCategory @belongsTo
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type Punishment {
+    id: ID!
+    description: String!
+    card_type_id: Int!
+    get_card_type: String!
+    is_direct_punishment: Boolean!
+    punishment_category_id: ID!
+    category: PunishmentCategory! @belongsTo
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type Punishment {
+    id: ID!
+    description: String!
+    card_type_id: Int!
+    get_card_type: String!
+    is_direct_punishment: Boolean!
+    punishment_category_id: ID!
+    category: PunishmentCategory! @belongsTo
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type UserPunishment {
+    id: ID!
+    user_id: ID!
+    user: User @belongsTo
+    punishment_id: ID!
+    punishment: Punishment @belongsTo
+    applied_at: DateTime!
+    expires_at: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+
+type GetPunishmentsResponse {
+    success: Boolean!
+    data: [Punishment!]
+    total: Int!
+    page: Int!
+    per_page: Int!
+}
+
+type MyPunishmentsResponse {
+    success: Boolean!
+    data: [UserPunishment!]
+    total: Int!
+    page: Int!
+    per_page: Int!
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input GetPunishmentsInput {
+    page: Int
+    per_page: Int
+}
+
+input MyPunishmentsInput {
+    page: Int
+    per_page: Int
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    getPunishments(input: GetPunishmentsInput!): GetPunishmentsResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\PunishmentResolver@getPunishments")
+}
+
+extend type Query {
+    myPunishments(input: MyPunishmentsInput!): MyPunishmentsResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\PunishmentResolver@myPunishments")
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+
+# --- 📌 End::Mutations ---

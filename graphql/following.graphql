@@ -1,0 +1,75 @@
+type Follow {
+    id: ID!
+    follower: User! @belongsTo
+    followed: User! @belongsTo
+    status: String!
+    notify_on_accept: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime
+}
+
+input FollowUserInput {
+    user_id: ID!
+}
+
+input HandleFollowRequestInput {
+    request_id: ID!
+    action: String! # 'accept' or 'reject'
+}
+
+type FollowResponse {
+    success: Boolean!
+    message: String!
+    follow: Follow
+    status: String! # 'followed', 'pending', 'error'
+}
+
+type UserListResponse {
+    success: Boolean!
+    message: String!
+    users: [User!]!
+}
+
+extend type Mutation {
+    # Tek bir endpoint - hem follow hem de follow request için
+    followUser(input: FollowUserInput! @spread): FollowResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\FollowResolver@followUser")
+        @guard(with: ["sanctum"])
+
+    # Takibi bırakma
+    unfollowUser(user_id: ID!): FollowResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\FollowResolver@unfollowUser")
+        @guard(with: ["sanctum"])
+
+    # Takip isteğini kabul etme veya reddetme
+    handleFollowRequest(input: HandleFollowRequestInput! @spread): FollowResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\FollowResolver@handleFollowRequest")
+        @guard(with: ["sanctum"])
+}
+
+extend type Query {
+    # Bekleyen takip istekleri
+    pendingFollowRequests(type: String = "received"): UserListResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\FollowResolver@getPendingRequests")
+        @guard(with: ["sanctum"])
+
+    # Takipçiler ve takip edilenler
+    userFollows(user_id: ID, type: String = "followers", status: String = "approved"): UserListResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\FollowResolver@getUserFollows")
+        @guard(with: ["sanctum"])
+}
+
+extend type User {
+    is_private: Boolean!
+    privacy_settings: PrivacySettings
+    can_be_viewed_by_me: Boolean! @method(name: "canBeViewedBy")
+    has_pending_follow_request_from_me: Boolean! @method(name: "hasPendingFollowRequestFrom")
+    is_followed_by_me: Boolean! @method(name: "isFollowedByMe")
+    is_following_me: Boolean! @method(name: "isFollowing")
+    is_blocked_by_me: Boolean! @method(name: "isBlockedByMe")
+    has_blocked_me: Boolean! @method(name: "isBlockedBy")
+    follow_status: String! @method(name: "getFollowStatusForUser") # 'not_following', 'following', 'pending'
+    pending_follow_requests_count: Int! @count(relation: "pendingFollowRequests")
+    followers_count: Int! @count(relation: "approvedFollowers")
+    following_count: Int! @count(relation: "approvedFollowing")
+}

@@ -1,0 +1,76 @@
+# --- 📌 Start::Response Models ---
+type AgoraChannelInvite {
+    id: ID
+    agora_channel_id: ID!
+    agora_channel_data: AgoraChannel
+    user_id: ID!
+    user: User
+    invited_user_id: ID!
+    invited_user: User
+    status_id: Int!
+    get_status: String!
+    invited_at: DateTime
+    responded_at: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+
+type InviteGuestToStreamResponse {
+    success: Boolean!
+    message: String,
+}
+
+type RespondToStreamInviteResponse {
+    success: Boolean!
+    message: String,
+    token: String,
+    agora_channel: AgoraChannel
+}
+
+type GetMyStreamInvitesResponse {
+    success: Boolean!
+    data: [AgoraChannelInvite]
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input InviteGuestToStreamInput {
+    agora_channel_id: ID!
+    invited_user_id: ID!
+}
+
+input RespondToStreamInviteInput {
+    invite_id: ID!
+    response: Boolean!
+}
+
+input getMyStreamInvitesInput {
+    page: Int
+    limit: Int
+    agora_channel_id: ID
+    status_id: ID
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    getMyStreamInvites(input: getMyStreamInvitesInput!): GetMyStreamInvitesResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@getMyStreamInvites")
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Yayına konuk davet et
+    inviteGuestToStream(input: InviteGuestToStreamInput!): InviteGuestToStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@inviteGuestToStream")
+
+    # Daveti cevapla
+    respondToStreamInvite(input: RespondToStreamInviteInput!): RespondToStreamInviteResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@respondToInvite")
+}
+# --- 📌 End::Mutations ---

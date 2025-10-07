@@ -1,0 +1,8 @@
+[{
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+        "namespace": "android_app",
+        "package_name": "com.shoot90.application",
+        "sha256_cert_fingerprints": ["2A:B7:AC:3F:F1:EF:FD:94:F9:41:64:0C:F9:34:3D:D6:F8:DD:7C:8F:E1:9B:50:B6:3F:9F:1E:CC:4E:5E:B7:2E"]
+    }
+}]

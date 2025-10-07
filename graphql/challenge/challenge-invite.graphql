@@ -1,0 +1,59 @@
+# --- 📌 Start::Response Models ---
+type ChallengeInvite {
+    id: ID!
+    invited_user_id: Int!
+    user_id: String!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type SendChallengeInviteResponse {
+    success: Boolean!
+    message: String
+}
+
+type RespondToChallengeInviteResponse {
+    success: Boolean!
+    message: String
+}
+
+type StartChallengeResponse {
+    success: Boolean!
+    message: String
+}
+
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input SendChallengeInviteInput {
+    agora_channel_id: ID!
+    teammate_user_id: ID
+    round_duration: Int
+    coin_amount: Int
+}
+
+input RespondToChallengeInviteInput {
+    challenge_invite_id: ID!
+    response: Boolean!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+
+
+
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Meydan Okuma daveti gönder
+    sendChallengeInvite(input: SendChallengeInviteInput!): SendChallengeInviteResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Challenge\\ChallengeInviteResolver@sendChallengeInvite")
+
+    # Meydan Okuma daveti cevapla
+    respondToChallengeInvite(input: RespondToChallengeInviteInput!): RespondToChallengeInviteResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Challenge\\ChallengeInviteResolver@respondToChallengeInvite")
+}
+# --- 📌 End::Mutations ---

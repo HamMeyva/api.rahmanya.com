@@ -1,0 +1,26 @@
+# --- 📌 Start::Response Models ---
+type StartChallengeResponse {
+    success: Boolean!
+    message: String
+}
+
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+
+
+
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Meydan Okumayı Başlat (Host meydan okumayı başlatır)
+    startChallenge: StartChallengeResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Challenge\\ChallengeResolver@startChallenge")
+}
+# --- 📌 End::Mutations ---

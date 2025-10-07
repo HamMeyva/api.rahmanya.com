@@ -1,0 +1,243 @@
+# --- 📌 Chat Types ---
+type ChatConversation {
+    id: ID!
+    participants: [String!]!
+    last_message: ChatLastMessage
+    unread_count: Int!
+    created_at: DateTime!
+    updated_at: DateTime!
+    other_user: ChatUser
+}
+
+type ChatUser {
+    id: ID!
+    name: String
+    surname: String
+    nickname: String
+    avatar: String
+}
+
+type ChatLastMessage {
+    id: ID
+    sender_id: ID
+    content: String
+    type: String
+    created_at: DateTime
+}
+
+type ChatMessage {
+    id: ID!
+    conversation_id: ID!
+    sender_id: ID!
+    content: String
+    type: String!
+    media_url: String
+    thumbnail_url: String
+    duration: Float
+    is_read: Boolean!
+    read_at: DateTime
+    reply_to: ID
+    reactions: [ChatReaction!]
+    created_at: DateTime!
+    sender: ChatUser
+    has_banned_word: Boolean
+    mentions: [Mention]
+    shared_video: SharedVideo
+    shared_profile: SharedProfile
+}
+
+type SharedVideo {
+    id: ID
+    thumbnail_url: String
+    video_url: String
+    description: String
+}
+
+type SharedProfile {
+    id: ID
+    avatar: String
+    name: String
+    surname: String
+    nickname: String
+}
+
+type ChatReaction {
+    user_id: ID!
+    reaction: String!
+    created_at: DateTime!
+}
+
+type ChatConversationsResponse {
+    conversations: [ChatConversation!]!
+    total: Int!
+    page: Int!
+    per_page: Int!
+}
+
+type ChatMessagesResponse {
+    messages: [ChatMessage!]!
+    total: Int!
+    page: Int!
+    per_page: Int!
+}
+
+type ChatResponse {
+    success: Boolean!
+    message: String
+}
+
+input ChatMessageInput {
+    conversation_id: ID!
+    content: String!
+    reply_to: ID
+}
+
+input SendMessageVideoInput {
+    user_ids: [ID!]!
+    video_id: ID!
+    content: String
+}
+
+input SendMessageProfileInput {
+    user_ids: [ID!]!
+    shared_user_id: ID!
+    content: String
+}
+
+input ChatMediaMessageInput {
+    conversation_id: ID!
+    media_content: String!
+    type: String!
+    reply_to: ID
+}
+
+type ChatTypingStatus {
+    user_id: ID!
+    is_typing: Boolean!
+    timestamp: DateTime!
+}
+
+input MessageSentToFollowersInput {
+    message: String!
+}
+
+type MessageSentToFollowersResponse {
+    success: Boolean!
+    message: String
+}
+
+# Search results type for combined search (only conversations, no messages)
+type SearchResults {
+    conversations: [ChatConversation!]
+    # messages field removed as we're only searching for users
+}
+
+# --- 📌 Chat Queries ---
+extend type Query {
+    # Chat queries
+    getConversations(page: Int, per_page: Int): ChatConversationsResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\ChatResolver@getConversations"
+        )
+
+    getMessages(
+        conversation_id: ID!
+        page: Int
+        per_page: Int
+    ): ChatMessagesResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\ChatResolver@getMessages")
+
+    # New search queries
+    searchConversations(query: String!): [ChatConversation!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\ChatResolver@searchConversations"
+        )
+}
+
+# --- 📌 Chat Mutations ---
+extend type Mutation {
+    # Chat mutations
+    startConversation(receiver_id: ID!): ChatConversation!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\ChatResolver@startConversation"
+        )
+
+    sendMessage(input: ChatMessageInput!): ChatMessage!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\ChatResolver@sendMessage")
+
+    sendMessage_video(input: SendMessageVideoInput!): ChatResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\ChatResolver@video")
+
+    sendMessage_profile(input: SendMessageProfileInput!): ChatResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\ChatResolver@profile")
+
+    sendMediaMessage(input: ChatMediaMessageInput!): ChatMessage!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\ChatResolver@sendMediaMessage"
+        )
+
+    markMessageAsRead(message_id: ID!): ChatResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\ChatResolver@markMessageAsRead"
+        )
+
+    markConversationAsRead(conversation_id: ID!): ChatResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\ChatResolver@markConversationAsRead"
+        )
+
+    addReaction(message_id: ID!, reaction: String!): ChatResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\ChatResolver@addReaction")
+
+    removeReaction(message_id: ID!): ChatResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\ChatResolver@removeReaction")
+
+    deleteMessage(message_id: ID!): ChatResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\ChatResolver@deleteMessage")
+
+    setTypingStatus(conversation_id: ID!, is_typing: Boolean!): ChatResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\ChatResolver@setTypingStatus"
+        )
+
+    messageSentToFollowers(
+        input: MessageSentToFollowersInput!
+    ): MessageSentToFollowersResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\ChatResolver@messageSentToFollowers"
+        )
+}
+
+# --- 📌 Chat Subscriptions ---
+extend type Subscription {
+    # Chat subscriptions
+    messageSent(conversationId: ID!): ChatMessage!
+        @field(
+            resolver: "App\\GraphQL\\Subscriptions\\ChatSubscription@messageSent"
+        )
+
+    messageRead(conversationId: ID!): ChatMessage!
+        @field(
+            resolver: "App\\GraphQL\\Subscriptions\\ChatSubscription@messageRead"
+        )
+
+    userTyping(conversationId: ID!): ChatTypingStatus!
+        @field(
+            resolver: "App\\GraphQL\\Subscriptions\\ChatSubscription@userTyping"
+        )
+}

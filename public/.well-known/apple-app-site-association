@@ -1,0 +1,17 @@
+{
+    "applinks": {
+        "apps": [],
+        "details": [
+            {
+                "appID": "K864Y4HQ3W.com.shoot90.application",
+                "paths": [
+                    "/v/*",
+                    "/u/*",
+                    "/share/*",
+                    "NOT /api/*",
+                    "NOT /admin/*"
+                ]
+            }
+        ]
+    }
+}

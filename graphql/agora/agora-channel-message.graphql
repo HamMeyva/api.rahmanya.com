@@ -1,0 +1,48 @@
+# --- 📌 Start::Response Models ---
+type AgoraChannelMessage {
+    id: ID
+    message: String
+    has_banned_word: Boolean
+}
+
+type SendMessageToStreamResponse {
+    success: Boolean!
+    message: String,
+}
+
+type GetStreamMessagesResponse {
+    success: Boolean!
+    message: String,
+    data: [AgoraChannelMessage!]
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input SendMessageToStreamInput {
+    agora_channel_id: ID!
+    message: String!
+}
+
+input GetStreamMessagesInput {
+    agora_channel_id: ID!
+    page: Int
+    limit: Int
+    dir: String
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    getStreamMessages(input: GetStreamMessagesInput!): GetStreamMessagesResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraMessageResolver@getStreamMessages")
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    sendMessageToStream(input: SendMessageToStreamInput!): SendMessageToStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraMessageResolver@sendMessageToStream")
+}
+# --- 📌 End::Mutations ---

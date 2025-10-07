@@ -1,0 +1,61 @@
+# --- 📌 Start::Response Models ---
+type GeneralProblemReport {
+    id: ID!
+
+    entity_type: String!
+    entity_id: ID!
+
+    user_id: ID!
+    user: User @belongsTo
+
+    status_id: Int!
+    get_status: String!
+
+    report_problem_category_id: ID
+    report_problem_category: ReportProblemCategory @belongsTo
+
+    message: String!
+    admin_response: String
+    admin_id: ID
+    admin: Admin @belongsTo
+
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type ReportGeneralProblemResponse {
+    success: Boolean!
+    message: String
+}
+
+type MyGeneralProblemReportsResponse {
+    success: Boolean!
+    message: String
+    data: [GeneralProblemReport!]
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input ReportGeneralProblemInput {
+    report_problem_category_id: ID
+    message: String!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    myGeneralProblemReports: MyGeneralProblemReportsResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\GeneralReportResolver@myReports"
+        )
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    reportGeneralProblem(input: ReportGeneralProblemInput!): ReportGeneralProblemResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\GeneralReportResolver@report")
+}
+# --- 📌 End::Mutations ---

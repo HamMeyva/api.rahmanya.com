@@ -1,0 +1,432 @@
+# --- 📌 Start::Response Models ---
+type AgoraChannel {
+    id: ID!
+    channel_name: String
+    user_id: String!
+    user: User @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@user")
+    is_online: Boolean
+    language_id: String
+    title: String!
+    description: String
+    thumbnail_url: String
+    stream_key: String
+    rtmp_url: String
+    playback_url: String
+    viewer_count: Int
+    max_viewer_count: Int
+    total_likes: Int
+    total_gifts: Int
+    total_coins_earned: Int
+    tags: [String]
+    category_id: ID
+    is_featured: Boolean
+    settings: JSON
+    status_id: Int
+    started_at: DateTime
+    ended_at: DateTime
+}
+
+# From stream.graphql (priority)
+type CreateStreamResponse {
+    success: Boolean!
+    channelName: String
+    token: String
+    uid: Int
+}
+
+type StartStreamResponse {
+    success: Boolean!
+    message: String
+    token: String
+    channel_name: String
+    stream_key: String
+    agora_channel_id: ID
+}
+
+type EndStreamResponse {
+    success: Boolean!
+    message: String
+}
+
+type JoinStreamResponse {
+    success: Boolean!
+    message: String
+    token: String
+    channel_name: String
+    agora_channel_id: ID
+}
+
+type LikeStreamResponse {
+    success: Boolean!
+    message: String
+}
+
+type StreamScreenShootResponse {
+    success: Boolean!
+    message: String
+}
+
+# From stream.graphql (priority)
+type LeaveStreamResponse {
+    success: Boolean!
+    message: String
+}
+
+type LiveStream {
+    id: ID!
+    title: String!
+    description: String
+    thumbnail_url: String
+    status: String!
+    is_online: Boolean!
+    is_featured: Boolean!
+    viewer_count: Int!
+    max_viewer_count: Int!
+    total_likes: Int!
+    total_messages: Int!
+    total_gifts: Int!
+    total_coins_earned: Int!
+    user: User @field(resolver: "App\\GraphQL\\Resolvers\\UserResolver@user")
+    category: LiveStreamCategory @belongsTo
+    recording_urls: [String]
+    has_recording: Boolean
+    started_at: DateTime
+    is_challenge_active: Boolean
+    ended_at: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type LiveStreamViewer {
+    id: ID!
+    agora_channel_id: ID!
+    user: User! @belongsTo
+    status: String!
+    gifts_sent: Int!
+    coins_spent: Int!
+    messages_count: Int!
+    is_moderator: Boolean!
+    is_blocked: Boolean!
+    last_activity_at: DateTime!
+    joined_at: DateTime!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type LiveStreamMessage {
+    id: ID!
+    agora_channel_id: ID!
+    user: User! @belongsTo
+    message: String!
+    is_pinned: Boolean!
+    is_system_message: Boolean!
+    is_deleted: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type LiveStreamCategory {
+    id: ID!
+    name: String!
+    slug: String!
+    description: String
+    icon: String
+    icon_url: String
+    cover_image: String
+    parent_id: ID
+    is_active: Boolean!
+    display_order: Int
+    subcategories: [LiveStreamCategory!] @hasMany
+    active_streams_count: Int
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type LiveStreamAnalytics {
+    user_id: ID
+    total_streams: Int!
+    total_stream_duration: Int!
+    total_viewers: Int!
+    max_concurrent_viewers: Int!
+    total_likes: Int!
+    total_messages: Int!
+    total_gifts: Int!
+    total_coins_earned: Int!
+    avg_viewer_duration: Float
+    period: String
+    start_date: DateTime
+    end_date: DateTime
+}
+
+# Additional types from stream.graphql
+type CreateStreamResponse {
+    success: Boolean!
+    channelName: String
+    token: String
+    uid: Int
+}
+
+type LeaveStreamResponse {
+    success: Boolean!
+    message: String
+}
+
+type StreamHeartbeatResponse {
+    success: Boolean!
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input StartStreamInput {
+    title: String
+    description: String
+    language_id: ID
+    category_id: ID
+    thumbnail_url: String
+    thumbnail_image: String # Base64 encoded image data
+    thumbnail_extension: String # Image extension (jpg, jpeg, png)
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    # From stream.graphql (priority)
+    listLiveStreams(page: Int = 1, limit: Int = 20): [LiveStream!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@listLiveStreams"
+        )
+
+    # Get live streams of users that the current user follows
+    followingLiveStreams(page: Int = 1, limit: Int = 20): [LiveStream!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@followingLiveStreams"
+        )
+
+    # Yayın sorguları
+    liveStreams(
+        page: Int
+        limit: Int
+        search: String
+        category_id: ID
+        followed_only: Boolean
+        featured_only: Boolean
+    ): [LiveStream!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@liveStreams"
+        )
+
+    liveStream(id: ID!): LiveStream
+        @find(model: "App\\Models\\Agora\\AgoraChannel")
+
+    userStreams(userId: ID!, page: Int, limit: Int): [LiveStream!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@userStreams"
+        )
+
+    # İzleyici sorguları
+    streamViewers(channel_id: ID!, limit: Int = 50): [LiveStreamViewer!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@streamViewers"
+        )
+
+    streamViewerCount(streamId: ID!): Int!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@streamViewerCount"
+        )
+
+    myViewerStatus(streamId: ID!): LiveStreamViewer
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@myViewerStatus"
+        )
+
+    pinnedMessage(streamId: ID!): LiveStreamMessage
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@pinnedMessage"
+        )
+
+    # Kategori sorguları
+    liveStreamCategories(
+        parent_id: ID
+        search: String
+        page: Int
+        limit: Int
+    ): [LiveStreamCategory!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@liveStreamCategories"
+        )
+
+    liveStreamCategory(id: ID!): LiveStreamCategory
+        @find(model: "App\\Models\\LiveStreamCategory")
+        @guard(with: ["sanctum"])
+
+    categorySubcategories(
+        categoryId: ID!
+        page: Int
+        limit: Int
+    ): [LiveStreamCategory!]!
+        @paginate(model: "App\\Models\\LiveStreamCategory")
+        @guard(with: ["sanctum"])
+
+    categoryStreams(categoryId: ID!, page: Int, limit: Int): [LiveStream!]!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@categoryStreams"
+        )
+
+    # Analitik sorguları
+    userStreamStats(userId: ID): LiveStreamAnalytics!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@userStreamStats"
+        )
+
+    streamAnalytics(streamId: ID!): LiveStreamAnalytics!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@streamAnalytics"
+        )
+
+    performanceSummary(userId: ID, period: String): LiveStreamAnalytics!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@performanceSummary"
+        )
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Yeni bir canlı yayın başlat (from agora-channel.graphql)
+    startStream(input: StartStreamInput!): StartStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@startStream"
+        )
+
+    # Yayıncı yayında aktif olduğu sürece 10snde bir buraya istek atmak zorunda. 30 saniye boyunca istek gelmez ise yayın sonlanır.
+    streamHeartbeat(stream_id: ID!): StreamHeartbeatResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@streamHeartbeat"
+        )
+
+    # Canlı yayın sonlandır (from agora-channel.graphql)
+    endStream(agora_channel_id: ID!): EndStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@endStream"
+        )
+
+    # Canlı yayın katılma (from agora-channel.graphql)
+    joinStream(agora_channel_id: ID!): JoinStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@joinStream"
+        )
+
+    # Canlı yayından ayrılma
+    leaveStream(agora_channel_id: ID!): LeaveStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@leaveStream"
+        )
+
+    # Yayını Beğen
+    likeStream(agora_channel_id: ID!): LikeStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@likeStream"
+        )
+    # Yayın görüntüsünü thumbnail olarak kayıt et
+    streamScreenShoot(agora_channel_id: ID!): StreamScreenShootResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@streamScreenShoot"
+        )
+
+    # From live_stream.graphql (additional methods)
+    updateStream(
+        streamId: ID!
+        title: String
+        description: String
+        category_id: ID
+        thumbnail_url: String
+        settings: JSONObject
+    ): LiveStream!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@updateStream"
+        )
+
+    goLive(streamId: ID!): LiveStream!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@goLive")
+
+    banViewer(streamId: ID!, viewerId: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@banViewer"
+        )
+
+    pinMessage(streamId: ID!, messageId: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@pinMessage"
+        )
+
+    unpinMessage(streamId: ID!, messageId: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@unpinMessage"
+        )
+
+    blockUserFromLiveStreamChat(streamId: ID!, userId: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@blockUserFromLiveStreamChat"
+        )
+
+    unblockUserFromLiveStreamChat(streamId: ID!, userId: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@unblockUserFromLiveStreamChat"
+        )
+
+    addModerator(streamId: ID!, userId: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@addModerator"
+        )
+
+    removeModerator(streamId: ID!, userId: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@removeModerator"
+        )
+
+    # Cloud Recording işlemleri
+    startRecording(channelName: String!, uid: String!): JSONObject!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@startRecording"
+        )
+
+    endRecording(
+        channelName: String!
+        resourceId: String!
+        sid: String!
+    ): JSONObject!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraResolver@endRecording"
+        )
+}
+# --- 📌 End::Mutations ---

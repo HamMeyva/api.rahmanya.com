@@ -1,0 +1,272 @@
+# --- 📌 Video Modelleri ---
+type Video @model {
+    id: ID!
+    video_guid: String!
+    user_id: String!
+    user: User @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@resolveUser")
+    title: String!
+    description: String
+    duration: Float
+    width: Int
+    height: Int
+    thumbnail_url: String
+    video_url: String
+    status: String!
+    processing_status: String
+    is_private: Boolean!
+    is_commentable: Boolean!
+    is_featured: Boolean
+    is_sport: Boolean!
+    is_liked_by_me: Boolean! @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@resolveIsLikedByMe")
+    is_played: Boolean! @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@resolveIsPlayed")
+    views_count: Int!
+    play_count: Int!
+    likes_count: Int!
+    comments_count: Int!
+    shares_count: Int
+    engagement_score: Float
+    trending_score: Float
+    tags: [String!]
+    team_tags: [String!]
+    location: String
+    language: String
+    content_rating: String
+    created_at: DateTime!
+    updated_at: DateTime
+    video_likes: [VideoLike!]! @hasMany
+    video_comments: [VideoComment!]! @hasMany
+    video_views: [VideoView!]! @hasMany
+}
+
+type VideoComment @model {
+    id: ID!
+    video_id: String!
+    video: Video! @field(resolver: "App\\GraphQL\\Resolvers\\VideoCommentResolver@resolveVideo")
+    user_id: String!
+    user: User! @field(resolver: "App\\GraphQL\\Resolvers\\VideoCommentResolver@resolveUser")
+    parent_id: String
+    parent: VideoComment @field(resolver: "App\\GraphQL\\Resolvers\\VideoCommentResolver@resolveParent")
+    comment: String!
+    likes_count: Int!
+    dislikes_count: Int!
+    replies_count: Int!
+    created_at: DateTime!
+    updated_at: DateTime
+    replies: [VideoComment!]! @hasMany
+    user_reaction: String
+    is_liked_by_me: Boolean! @field(resolver: "App\\GraphQL\\Resolvers\\VideoCommentResolver@resolveIsLikedByMe")
+    is_disliked_by_me: Boolean! @field(resolver: "App\\GraphQL\\Resolvers\\VideoCommentResolver@resolveIsDislikedByMe")
+    has_banned_word: Boolean
+    mentions: [Mention]
+}
+
+type VideoLike @model {
+    id: ID!
+    video_id: String!
+    video: Video! @field(resolver: "App\\GraphQL\\Resolvers\\VideoLikeResolver@resolveVideo")
+    user_id: String!
+    user: User! @field(resolver: "App\\GraphQL\\Resolvers\\VideoLikeResolver@resolveUser")
+    created_at: DateTime!
+}
+
+type VideoView @model {
+    id: ID!
+    video_id: String!
+    user_id: String
+    ip_address: String
+    user_agent: String
+    duration_watched: Float
+    percentage_watched: Float
+    created_at: DateTime!
+}
+
+# --- 📌 Video Yanıt Modelleri ---
+type VideoUploadUrlResponse {
+    success: Boolean!
+    uploadUrl: String
+    videoId: String
+    expiresAt: DateTime
+}
+
+type VideoFeedResponse {
+    videos: [Video!]!
+    ads: [Ad!]
+}
+
+type GetUserVideosResponse {
+    videos: [Video!]!
+    has_more: Boolean!
+    current_page: Int!
+    per_page: Int!
+    total: Int!
+}
+
+type IncrementVideoViewResponse {
+    success: Boolean!
+    message: String
+    id: ID
+    views_count: Int
+    video: Video
+}
+
+type VideoCommentsResponse {
+    comments: [VideoComment!]!
+    total_main_count: Int!
+    total_count: Int!
+}
+
+# --- 📌 Video Input Modelleri ---
+input VideoMetadataInput {
+    video_guid: String!
+    title: String!
+    description: String
+    tags: [String!]
+    team_tags: [String!]
+    is_private: Boolean
+    is_commentable: Boolean
+    is_sport: Boolean
+    location: String
+    language: String
+    content_rating: String
+}
+
+input UpdateVideoInput {
+    description: String
+    tags: [String!]
+    team_tags: [String!]
+    is_private: Boolean
+    is_commentable: Boolean
+    is_sport: Boolean
+    location: String
+    language: String
+    content_rating: String
+}
+
+input VideoFeedInput {
+    page: Int
+    per_page: Int
+    bypass_cache: Boolean
+    exclude_viewed: Boolean
+    user_id: String
+    random_factor: Float
+}
+
+input ProfileVideosInput {
+    page: Int
+    per_page: Int
+    bypass_cache: Boolean
+    exclude_viewed: Boolean
+    user_id: String
+    random_factor: Float
+}
+
+input VideoFilterInput {
+    tag: String
+    team_tag: String
+    filter: String
+    page: Int
+    per_page: Int
+}
+
+input VideoSearchInput {
+    query: String
+    location: String
+    tags: [String!]
+    page: Int
+    per_page: Int
+}
+
+input VideoCommentInput {
+    video_id: ID!
+    comment: String!
+    parent_id: ID
+}
+
+# --- 📌 Video Sorguları ---
+extend type Query {
+    # Video queries
+    getVideo(id: ID!): Video
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getVideo")
+    getVideoByGuid(video_guid: String!): Video
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getVideoByGuid")
+    searchVideos(input: VideoSearchInput!): VideoFeedResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@searchVideos")
+    getVideoFeed(input: VideoFeedInput): VideoFeedResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getVideoFeed")
+    getFollowingVideoFeed(input: VideoFeedInput): VideoFeedResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getFollowingVideoFeed")
+    getSportVideoFeed(input: VideoFeedInput): VideoFeedResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getSportVideoFeed")
+    getTrendingVideos(page: Int, per_page: Int): VideoFeedResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getTrendingVideos")
+    getVideoComments(videoId: ID!, parentId: ID): VideoCommentsResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getVideoComments")
+    getCommentReplies(commentId: ID!): VideoCommentsResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getCommentReplies")
+    getUserVideos(input: VideoFeedInput): GetUserVideosResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getUserVideos")
+    getProfileVideos(input: ProfileVideosInput!): VideoFeedResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@getProfileVideos")
+}
+
+# --- 📌 Video Mutasyonları ---
+extend type Mutation {
+    # Video mutations
+    createVideoUploadUrl(extension: String!): VideoUploadUrlResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@createVideoUploadUrl")
+    processVideoMetadata(input: VideoMetadataInput!): Video!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@processVideoMetadata")
+
+    # Video paylaşım sayısını artır
+    incrementVideoShare(videoId: ID!): Video
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@incrementVideoShare")
+    updateVideo(id: ID!, input: UpdateVideoInput!): Video!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@updateVideo")
+    deleteVideo(id: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@deleteVideo")
+    toggleVideoPrivacy(id: ID!): Video!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@toggleVideoPrivacy")
+
+    # Video interaction mutations
+    likeVideo(videoId: ID!): Video!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@likeVideo")
+
+    incrementVideoView(videoId: ID!, duration: Int, completed: Boolean, hasWatchedTenSeconds: Boolean): IncrementVideoViewResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@incrementVideoView")
+
+    # Comment mutations
+    createVideoComment(videoId: ID!, comment: String!, parentId: ID): VideoComment!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@commentVideo")
+    deleteVideoComment(id: ID!): Boolean!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@deleteVideoComment")
+
+    likeVideoComment(id: ID!): VideoComment!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoCommentResolver@likeVideoComment")
+    dislikeVideoComment(id: ID!): VideoComment!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoCommentResolver@dislikeVideoComment")
+    removeVideoCommentReaction(id: ID!): VideoComment!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\VideoCommentResolver@removeVideoCommentReaction")
+}

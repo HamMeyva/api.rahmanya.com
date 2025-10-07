@@ -1,0 +1,19 @@
+# --- 📌 Custom Scalar Types ---
+
+"""
+The `JSON` scalar type represents JSON values as specified by
+[ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON @scalar(class: "MLL\\GraphQLScalars\\JSON")
+
+"""
+The `PrivacySettings` scalar type represents user privacy settings as a JSON object.
+It automatically handles conversion between JSON strings and objects.
+"""
+scalar PrivacySettings @scalar(class: "App\\GraphQL\\Scalars\\PrivacySettingsScalar")
+
+"""
+The `JSONObject` scalar type represents JSON objects as specified by
+[ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSONObject @scalar(class: "MLL\\GraphQLScalars\\JSON")

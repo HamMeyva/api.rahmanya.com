@@ -1,0 +1,6 @@
+# --- 📌 Start::Response Models ---
+type Admin {
+    first_name: String!
+    last_name: String!
+}
+# --- 📌 End::Response Models ---

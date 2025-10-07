@@ -1,0 +1,49 @@
+# Main schema file that imports all other schema files
+scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+scalar Upload @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Upload")
+#import scalars.graphql
+
+type Mention {
+    user_id: String
+    nickname: String
+    start: Int
+    length: Int
+}
+
+#import user.graphql
+#import country.graphql
+#import city.graphql
+#import district.graphql
+#import admin.graphql
+#import report-problem.graphql
+#import report-problem-category.graphql
+#import report-general-problem.graphql
+#import chat.graphql
+#import following.graphql
+#import auth.graphql
+#import notification.graphql
+#import video.graphql
+#import video/video-report.graphql
+#import story.graphql
+#import currency.graphql
+#import payment.graphql
+#import gift.graphql
+#import gift-basket.graphql
+#import coin-package.graphql
+#import coin-withdrawal-request.graphql
+#import advertiser.graphql
+#import ad.graphql
+#import ad-impression.graphql
+#import ad-click.graphql
+#import agora/agora-channel.graphql
+#import agora/agora-channel-message.graphql
+#import agora/agora-channel-gift.graphql
+#import agora/agora-invite.graphql
+#import challenge/challenge.graphql
+#import challenge/challenge-invite.graphql
+#import agora/agora-channel-report.graphql
+#import two-factor-auth.graphql
+#import app-settings.graphql
+#import punishment.graphql
+#import video-editor.graphql
+

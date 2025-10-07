@@ -1,0 +1,203 @@
+scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+# --- 📌 Story Modelleri ---
+type Story @model {
+    id: ID!
+    user_id: String!
+    user: User! @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@resolveUser")
+    media_guid: String!
+    media_type: String!
+    media_url: String
+    thumbnail_url: String
+    caption: String
+    location: String
+    is_private: Boolean!
+    expires_at: DateTime!
+    views_count: Int!
+    likes_count: Int!
+    status: String!
+    metadata: StoryMetadata
+    created_at: DateTime!
+    updated_at: DateTime
+    deleted_at: DateTime
+    remaining_time: Int
+    story_likes: [StoryLike!]! @hasMany
+    story_views: [StoryView!]! @hasMany
+}
+
+type StoryLike @model {
+    id: ID!
+    story_id: String!
+    story: Story! @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@resolveStory")
+    user_id: String!
+    user: User! @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@resolveUser")
+    created_at: DateTime!
+    updated_at: DateTime
+}
+
+type StoryView @model {
+    id: ID!
+    story_id: String!
+    story: Story! @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@resolveStory")
+    user_id: String!
+    user: User! @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@resolveUser")
+    view_duration: Float
+    completed: Boolean
+    ip_address: String
+    user_agent: String
+    created_at: DateTime!
+    updated_at: DateTime
+}
+
+type StoryMetadata {
+    width: Int
+    height: Int
+    duration: Float
+    format: String
+    size: Int
+    device: String
+    location_data: LocationData
+}
+
+type LocationData {
+    latitude: Float
+    longitude: Float
+    name: String
+    address: String
+    city: String
+    country: String
+}
+
+# --- 📌 Story Response Modelleri ---
+type StoriesResponse {
+    stories: [Story!]!
+    total_count: Int!
+    has_more: Boolean!
+}
+
+type StoryLikesResponse {
+    likes: [StoryLike!]!
+    total_count: Int!
+    has_more: Boolean!
+}
+
+type StoryViewsResponse {
+    views: [StoryView!]!
+    total_count: Int!
+    has_more: Boolean!
+}
+
+# --- 📌 Story Input Modelleri ---
+input StoryInput {
+    media_guid: String!
+    caption: String
+    location: String
+    is_private: Boolean
+    metadata: StoryMetadataInput
+}
+
+input StoryMediaUploadInput {
+    media_base64: String!
+    media_type: String!
+    caption: String
+    location: String
+    is_private: Boolean
+    metadata: StoryMetadataInput
+}
+
+input StoryMetadataInput {
+    width: Int
+    height: Int
+    duration: Float
+    format: String
+    size: Int
+    device: String
+    location_data: LocationDataInput
+}
+
+input LocationDataInput {
+    latitude: Float
+    longitude: Float
+    name: String
+    address: String
+    city: String
+    country: String
+}
+
+input StoryFilterInput {
+    user_id: String
+    status: String
+    is_private: Boolean
+    from_date: DateTime
+    to_date: DateTime
+    include_expired: Boolean
+}
+
+input StoryPaginationInput {
+    page: Int = 1
+    per_page: Int = 10
+}
+
+# --- 📌 Story Mutations ---
+extend type Mutation {
+    # Create a new story
+    createStory(input: StoryInput!): Story! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@createStory")
+
+    # Upload media and create a story
+    uploadStoryMedia(input: StoryMediaUploadInput!): Story! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@uploadStoryMedia")
+
+    # Update an existing story
+    updateStory(id: ID!, input: StoryInput!): Story! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@updateStory")
+
+    # Delete a story
+    deleteStory(id: ID!): Boolean! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@deleteStory")
+
+    # Like a story
+    likeStory(story_id: ID!): Boolean! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@likeStory")
+
+    # Unlike a story
+    unlikeStory(story_id: ID!): Boolean! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@unlikeStory")
+
+    # Mark a story as viewed
+    viewStory(
+        story_id: ID!
+        view_duration: Float
+        completed: Boolean
+    ): Boolean! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@viewStory")
+}
+
+# --- 📌 Story Queries ---
+extend type Query {
+    # Get a story by ID
+    story(id: ID!): Story @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@story")
+
+    # Get stories from users the current user follows
+    followingStories(
+        pagination: StoryPaginationInput
+    ): StoriesResponse! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@followingStories")
+
+    # Get stories from a specific user
+    userStories(
+        user_id: ID!
+        pagination: StoryPaginationInput
+        filter: StoryFilterInput
+    ): StoriesResponse! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@userStories")
+
+    # Get the current user's stories
+    myStories(
+        pagination: StoryPaginationInput
+        filter: StoryFilterInput
+    ): StoriesResponse! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@myStories")
+
+    # Get story likes
+    storyLikes(
+        story_id: ID!
+        pagination: StoryPaginationInput
+    ): StoryLikesResponse! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@storyLikes")
+
+    # Get story views
+    storyViews(
+        story_id: ID!
+        pagination: StoryPaginationInput
+    ): StoryViewsResponse! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Resolvers\\StoryResolver@storyViews")
+}

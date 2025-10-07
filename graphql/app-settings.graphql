@@ -1,0 +1,25 @@
+# --- 📌 Start::Response Models ---
+type AppSetting {
+    id: ID!
+    key: String!
+    value: String!
+    type: String!
+    get_label: String!
+}
+
+type AppSettingsResponse {
+    success: Boolean!
+    data: [AppSetting]
+}
+# --- 📌 End::Response Models ---
+
+
+
+# --- 📌 Start::Query ---
+extend type Query {
+    # Uygulama ayarlarını getir
+    getAppSettings: AppSettingsResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\AppSettingResolver@getAppSettings")
+}
+# --- 📌 End::Query ---

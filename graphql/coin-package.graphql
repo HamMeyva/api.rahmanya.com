@@ -1,0 +1,66 @@
+# --- 📌 Start::Response Models ---
+type CoinPackage {
+    id: ID!
+    coin_amount: Int!
+    price: Float!
+    is_discount: Boolean
+    discounted_price: Float
+    currency_id: ID!
+    currency: Currency @belongsTo
+    is_active: Boolean!
+    country_id: ID!
+    country: Country @belongsTo
+}
+
+type PurchaseCoinPackageResponse {
+    success: Boolean!
+    message: String
+    callback_url: String
+    payment: Payment
+}
+
+type CreateEftPaymentResponse {
+    success: Boolean!
+    message: String
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input PurchaseCoinPackageInput {
+    coin_package_id: ID!,
+    coupon_code: String
+}
+
+input CreateEftPaymentInput {
+    coin_package_id: ID!
+    coupon_code: String
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    getCoinPackages(country_id: ID): [CoinPackage!]!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\CoinPackageResolver@index")
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Coin Package satın alma
+    purchaseCoinPackage(
+        input: PurchaseCoinPackageInput!
+    ): PurchaseCoinPackageResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\CoinPackageResolver@purchase"
+        )
+
+    # Eft ödemesi ile Coin Package satın alma
+    createEftPayment(input: CreateEftPaymentInput!): CreateEftPaymentResponse!
+        @guard(with: ["sanctum"])
+        @field(
+            resolver: "App\\GraphQL\\Resolvers\\CoinPackageResolver@createEftPayment"
+        )
+}
+# --- 📌 End::Mutations ---
