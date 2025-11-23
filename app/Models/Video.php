@@ -228,11 +228,47 @@ class Video extends Model
 
     /**
      * Get the thumbnail URL based on the stored video_guid
+     * Returns standard JPG thumbnail
      */
     public function getThumbnailUrlAttribute()
     {
         $fileName = $this->thumbnail_filename ?? 'thumbnail.jpg';
         return $this->video_guid ? app(BunnyCdnService::class)->getThumbnailUrl($this->video_guid, $fileName) : null;
+    }
+
+    /**
+     * Get OPTIMIZED thumbnail URL with WebP format
+     * WebP is 30% smaller than JPG - faster loading!
+     * This should be used in mobile apps for better performance
+     */
+    public function getThumbnailWebpUrlAttribute()
+    {
+        if (!$this->video_guid) return null;
+
+        $fileName = $this->thumbnail_filename ?? 'thumbnail.jpg';
+
+        return app(BunnyCdnService::class)->getOptimizedThumbnailUrl(
+            $this->video_guid,
+            $fileName,
+            'webp',  // WebP format
+            480,     // 480px width (optimal for mobile)
+            85       // 85% quality (good balance)
+        );
+    }
+
+    /**
+     * Get the progressive MP4 URL for offline cache support
+     * This URL can be downloaded and cached locally on mobile devices
+     *
+     * @return string|null MP4 video URL (720p by default for balance of quality/size)
+     */
+    public function getVideoMp4UrlAttribute()
+    {
+        if (!$this->video_guid) return null;
+
+        // Return 720p MP4 for optimal cache size vs quality
+        // Mobile devices can download and cache this file for offline playback
+        return app(BunnyCdnService::class)->getMp4Url($this->video_guid, '720p');
     }
 
     /**
