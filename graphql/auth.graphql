@@ -82,7 +82,7 @@ input SendOTPInput {
 
 input RegisterInput {
     name: String!
-    surname: String!
+    surname: String
     nickname: String!
     gender_id: Int!
     birthday: String!

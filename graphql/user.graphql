@@ -7,7 +7,7 @@ type User {
     account_type: String
     collection_uuid: String
     name: String!
-    surname: String!
+    surname: String
     nickname: String
     gender: String
     gender_id: Int
