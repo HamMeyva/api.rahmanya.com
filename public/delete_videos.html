@@ -110,21 +110,7 @@
         <h1>🧹 Video Açıklama Temizleyici</h1>
         <p class="subtitle">Açıklamalardan '[XX] Alper Bey Armut: ' kısmını temizle</p>
 
-        <div class="status info">
-            ⚠️ <strong>Admin panelinden giriş yapmalısın!</strong><br>
-            1. <a href="https://api.rahmanya.com/admin/auth/login" target="_blank">Admin paneline git</a><br>
-            2. Giriş yap<br>
-            3. Bu sayfaya geri dön ve "Videoları Yükle" butonuna bas
-        </div>
-
-        <div id="loginSection" class="login-section hidden">
-            <h2>Giriş Yap</h2>
-            <input type="text" id="username" placeholder="Kullanıcı adı" value="hsaffur">
-            <input type="password" id="password" placeholder="Şifre" value="password">
-            <button onclick="login()">Giriş Yap</button>
-        </div>
-
-        <div id="videoSection" class="video-section hidden">
+        <div id="videoSection" class="video-section">
             <div class="stats">
                 <div class="stats-item">
                     Toplam Video: <span class="stats-number" id="totalCount">0</span>
@@ -226,14 +212,14 @@
 
             try {
                 // Use admin API to get all videos
-                const response = await fetch('https://api.rahmanya.com/admin/videos/data-table', {
+                const response = await fetch('/admin/videos/data-table', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json',
                     },
-                    credentials: 'include',
+                    credentials: 'same-origin',
                     body: JSON.stringify({
                         draw: 1,
                         start: 0,
@@ -244,7 +230,8 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Admin paneline giriş yapmadınız!');
+                    const text = await response.text();
+                    throw new Error(`Hata ${response.status}: ${text.substring(0, 100)}`);
                 }
 
                 const result = await response.json();
@@ -333,7 +320,7 @@
 
         async function updateVideoDescription(videoId, newDescription) {
             // Use admin API endpoint (same as admin panel)
-            const url = `https://api.rahmanya.com/admin/videos/${videoId}/update`;
+            const url = `/admin/videos/${videoId}/update`;
 
             const formData = new FormData();
             formData.append('description', newDescription);
@@ -347,7 +334,7 @@
                     'Accept': 'application/json',
                 },
                 body: formData,
-                credentials: 'include' // Include cookies
+                credentials: 'same-origin' // Include cookies
             });
 
             if (!response.ok) {
