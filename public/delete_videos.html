@@ -107,8 +107,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>🗑️ Video Silme Aracı</h1>
-        <p class="subtitle">Alper Bey Armut açıklamalı videoları sil</p>
+        <h1>🧹 Video Açıklama Temizleyici</h1>
+        <p class="subtitle">Açıklamalardan '[XX] Alper Bey Armut: ' kısmını temizle</p>
 
         <div id="loginSection" class="login-section">
             <h2>Giriş Yap</h2>
@@ -128,7 +128,7 @@
             </div>
 
             <button onclick="loadVideos()">Videoları Yükle</button>
-            <button class="danger" onclick="deleteAll()">Hepsini Sil</button>
+            <button class="danger" onclick="deleteAll()">Açıklamaları Temizle</button>
 
             <div id="status" class="status"></div>
             <div id="loading" class="loading"><div class="spinner"></div></div>
@@ -262,26 +262,22 @@
                         <div class="video-title">${video.title || 'Başlıksız'}</div>
                         <div class="video-desc">${video.description || ''}</div>
                     </div>
-                    <button class="danger" onclick="deleteVideo('${video.id}')">Sil</button>
+                    <button onclick="cleanDescription('${video.id}', '${video.description.replace(/'/g, "\\'")}')">Temizle</button>
                 </div>
             `).join('');
         }
 
-        async function deleteVideo(videoId) {
-            if (!confirm('Bu videoyu silmek istediğinden emin misin?')) return;
+        async function cleanDescription(videoId, currentDesc) {
+            const cleanDesc = currentDesc.replace(/\[\d+\]\s*Alper Bey Armut:\s*/g, '').trim();
+
+            if (!confirm(`Yeni açıklama:\n"${cleanDesc}"\n\nDevam edilsin mi?`)) return;
 
             try {
-                const query = `
-                    mutation DeleteVideo($id: ID!) {
-                        deleteVideo(id: $id)
-                    }
-                `;
-
-                await graphqlRequest(query, { id: videoId });
-                showStatus(`✅ Video silindi: ${videoId}`, 'success');
+                await updateVideoDescription(videoId, cleanDesc);
+                showStatus(`✅ Açıklama temizlendi!`, 'success');
                 loadVideos();
             } catch (error) {
-                showStatus(`❌ Silme hatası: ${error.message}`, 'error');
+                showStatus(`❌ Güncelleme hatası: ${error.message}`, 'error');
             }
         }
 
@@ -290,17 +286,19 @@
                 v.description && v.description.includes('Alper Bey Armut')
             );
 
-            if (!confirm(`${armutVideos.length} videoyu silmek istediğinden emin misin?`)) return;
+            if (!confirm(`${armutVideos.length} videonun açıklamasını düzenlemek istediğinden emin misin?`)) return;
 
             showLoading(true);
-            let deleted = 0;
+            let updated = 0;
             let failed = 0;
 
             for (const video of armutVideos) {
                 try {
-                    await deleteVideo(video.id);
-                    deleted++;
-                    showStatus(`Siliniyor... ${deleted}/${armutVideos.length}`, 'info');
+                    // Remove "[XX] Alper Bey Armut: " pattern from description
+                    const cleanDesc = video.description.replace(/\[\d+\]\s*Alper Bey Armut:\s*/g, '').trim();
+                    await updateVideoDescription(video.id, cleanDesc);
+                    updated++;
+                    showStatus(`Güncelleniyor... ${updated}/${armutVideos.length}`, 'info');
                 } catch (error) {
                     failed++;
                 }
@@ -308,8 +306,24 @@
             }
 
             showLoading(false);
-            showStatus(`✅ Tamamlandı! ${deleted} silindi, ${failed} hata`, 'success');
+            showStatus(`✅ Tamamlandı! ${updated} güncellendi, ${failed} hata`, 'success');
             loadVideos();
+        }
+
+        async function updateVideoDescription(videoId, newDescription) {
+            const query = `
+                mutation UpdateVideo($id: ID!, $input: UpdateVideoInput!) {
+                    updateVideo(id: $id, input: $input) {
+                        id
+                        description
+                    }
+                }
+            `;
+
+            await graphqlRequest(query, {
+                id: videoId,
+                input: { description: newDescription }
+            });
         }
     </script>
 </body>
