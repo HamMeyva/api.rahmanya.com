@@ -37,8 +37,8 @@ class BunnyCdnService
         $this->perPage = config('bunnycdn-library.perPage', '100');
 
         // Storage API yapılandırması
-        $this->storageApiKey = config('bunnycdn-storage.api_key', env('BUNNYCDN_STORAGE_API_KEY', ''));
-        $this->storageZoneName = config('bunnycdn-storage.zone_name', env('BUNNYCDN_STORAGE_ZONE_NAME', ''));
+        $this->storageApiKey = env('BUNNYCDN_STORAGE_API_KEY', config('bunnycdn-storage.api_key', ''));
+        $this->storageZoneName = env('BUNNYCDN_STORAGE_ZONE_NAME', config('bunnycdn-storage.zone_name', ''));
 
         // Get region and base hostname from config
         $region = config('bunnycdn-storage.region', '');
@@ -52,7 +52,7 @@ class BunnyCdnService
 
         // Set the CDN URL for serving media files
         // Use the configured CDN URL or fall back to the default pull zone URL
-        $this->storageCdnUrl = config('bunnycdn-storage.cdn_url', env('BUNNYCDN_STORAGE_CDN_URL', ''));
+        $this->storageCdnUrl = env('BUNNYCDN_STORAGE_CDN_URL', config('bunnycdn-storage.cdn_url', ''));
 
         // If no CDN URL is configured, use the pull zone URL format
         if (empty($this->storageCdnUrl)) {
@@ -345,6 +345,8 @@ class BunnyCdnService
             $contentFolder = 'stories'; // Default folder
             if ($contentType === 'stream') {
                 $contentFolder = 'streams';
+            } elseif ($contentType === 'avatar') {
+                $contentFolder = 'users';
             }
 
             // Create paths for media and thumbnail
@@ -357,10 +359,15 @@ class BunnyCdnService
                 $basePath .= $userId . '/';
             }
 
+            // For avatars, add subfolder
+            if ($contentType === 'avatar') {
+                $basePath .= 'avatar/';
+            }
+
             $basePath .= $guid . '/';
 
             // Determine file name based on content type
-            $fileName = ($contentType === 'stream') ? 'thumbnail' : 'story';
+            $fileName = ($contentType === 'stream') ? 'thumbnail' : ($contentType === 'avatar' ? 'avatar' : 'story');
             $mediaPath = $basePath . $fileName . '.' . $extension;
             $thumbnailPath = $basePath . 'thumbnail.jpg';
 
@@ -447,15 +454,78 @@ class BunnyCdnService
     }
 
     /**
-     * Upload a file to BunnyCDN Storage
+     * Upload a file to BunnyCDN Storage with retry mechanism for 401 errors
      *
      * @param string $path Path in storage zone (without leading slash)
      * @param string $content File content
+     * @param int $maxRetries Maximum number of retries for 401 errors
      * @return bool Success status
      */
-    public function uploadToStorage(string $path, string $content): bool
+    public function uploadToStorage(string $path, string $content, int $maxRetries = 3): bool
+    {
+        $attempt = 0;
+        
+        while ($attempt <= $maxRetries) {
+            try {
+                $result = $this->attemptUploadToStorage($path, $content, $attempt);
+                
+                if ($result === true) {
+                    return true;
+                }
+                
+                // Eğer 401 hatası değilse tekrar deneme
+                if ($result !== 401) {
+                    return false;
+                }
+                
+                $attempt++;
+                
+                if ($attempt <= $maxRetries) {
+                    // Exponential backoff: 1s, 2s, 4s
+                    $delay = pow(2, $attempt - 1);
+                    Log::warning("BunnyCDN 401 error, retrying in {$delay} seconds (attempt {$attempt}/{$maxRetries})", [
+                        'path' => $path,
+                        'attempt' => $attempt
+                    ]);
+                    sleep($delay);
+                }
+            } catch (Exception $e) {
+                Log::error('Error in uploadToStorage retry loop: ' . $e->getMessage(), [
+                    'path' => $path,
+                    'attempt' => $attempt,
+                    'error' => $e->getMessage()
+                ]);
+                return false;
+            }
+        }
+        
+        Log::error('Failed to upload after all retries', [
+            'path' => $path,
+            'max_retries' => $maxRetries
+        ]);
+        
+        return false;
+    }
+
+    /**
+     * Attempt to upload a file to BunnyCDN Storage (single attempt)
+     *
+     * @param string $path Path in storage zone (without leading slash)
+     * @param string $content File content
+     * @param int $attemptNumber Current attempt number for logging
+     * @return bool|int Success status (true) or HTTP error code (401, etc.)
+     */
+    private function attemptUploadToStorage(string $path, string $content, int $attemptNumber = 0): bool|int
     {
         try {
+            // Refresh config values in case they weren't loaded properly
+            if (empty($this->storageApiKey)) {
+                $this->storageApiKey = env('BUNNYCDN_STORAGE_API_KEY');
+            }
+            if (empty($this->storageZoneName)) {
+                $this->storageZoneName = env('BUNNYCDN_STORAGE_ZONE_NAME');
+            }
+            
             // Validate storage configuration with detailed logging
             if (empty($this->storageApiKey) || empty($this->storageZoneName) || empty($this->storageUrl)) {
                 Log::error('BunnyCDN Storage configuration is incomplete', [
@@ -463,6 +533,7 @@ class BunnyCdnService
                     'storage_zone_name_set' => !empty($this->storageZoneName),
                     'storage_url_set' => !empty($this->storageUrl),
                     'storage_api_key_length' => empty($this->storageApiKey) ? 0 : strlen($this->storageApiKey),
+                    'storage_api_key_first_chars' => empty($this->storageApiKey) ? 'N/A' : substr($this->storageApiKey, 0, 10) . '...',
                     'storage_zone_name' => $this->storageZoneName,
                     'storage_url' => $this->storageUrl,
                     'env_storage_api_key_set' => !empty(env('BUNNYCDN_STORAGE_API_KEY')),
@@ -472,9 +543,22 @@ class BunnyCdnService
                 return false;
             }
 
+            // Debug API key format
+            if ($attemptNumber === 0) {
+                Log::info('BunnyCDN API key debug info', [
+                    'api_key_length' => strlen($this->storageApiKey),
+                    'api_key_starts_with' => substr($this->storageApiKey, 0, 10) . '...',
+                    'api_key_ends_with' => '...' . substr($this->storageApiKey, -10),
+                    'zone_name' => $this->storageZoneName,
+                    'storage_url' => $this->storageUrl,
+                    'has_dashes' => strpos($this->storageApiKey, '-') !== false,
+                    'api_key_format_check' => preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}$/', $this->storageApiKey)
+                ]);
+            }
+
             // Log content size for debugging
             $contentSize = strlen($content);
-            Log::info('Preparing to upload content to BunnyCDN Storage', [
+            Log::info('Preparing to upload content to BunnyCDN Storage (attempt ' . ($attemptNumber + 1) . ')', [
                 'path' => $path,
                 'content_size' => $contentSize
             ]);
@@ -523,19 +607,39 @@ class BunnyCdnService
                 return false;
             }
 
-            // HTTP isteği için gerekli başlıkları ayarla
+            // Debug headers for first attempt
+            if ($attemptNumber === 0) {
+                Log::info('BunnyCDN upload headers debug', [
+                    'content_type' => 'application/octet-stream',
+                    'access_key_length' => strlen($this->storageApiKey),
+                    'full_url' => $url
+                ]);
+            }
+
+            // Test different API key formats if this is a retry
+            $testApiKey = $this->storageApiKey;
+            if ($attemptNumber > 0) {
+                // BunnyCDN bazen farklı format bekliyor
+                if (strpos($this->storageApiKey, 'FTP') === false) {
+                    $testApiKey = 'FTP-' . $this->storageApiKey;
+                    Log::info('Trying API key with FTP prefix', ['attempt' => $attemptNumber]);
+                }
+            }
+
+            // HTTP bağlam seçeneklerini ayarla  
             $headers = [
                 'Content-Type: application/octet-stream',
-                'AccessKey: ' . $this->storageApiKey
+                'AccessKey: ' . $testApiKey,
+                'User-Agent: shoot90-backend/1.0'
             ];
-
-            // HTTP bağlam seçeneklerini ayarla
+            
             $options = [
                 'http' => [
                     'method' => 'PUT',
-                    'header' => implode('\r\n', $headers),
+                    'header' => implode("\r\n", $headers),
                     'content' => $fileContent,
                     'timeout' => 60,
+                    'ignore_errors' => true
                 ]
             ];
 
@@ -583,8 +687,14 @@ class BunnyCdnService
                     'http_response_header' => $http_response_header ?? 'No response headers'
                 ]);
 
-                // Curl ile tekrar deneyelim
-                return $this->uploadToStorageWithCurl($url, $content, $path);
+                // 401 error'ı retry için return et
+                if ($httpCode === 401) {
+                    return 401;
+                }
+
+                // Diğer hatalar için curl ile tekrar deneyelim
+                $curlResult = $this->uploadToStorageWithCurl($url, $content, $path, $testApiKey);
+                return $curlResult ? true : $httpCode;
             }
 
             Log::info('Successfully uploaded file to BunnyCDN Storage', [
@@ -610,11 +720,13 @@ class BunnyCdnService
      * @param string $url Full URL to upload to
      * @param string $content File content
      * @param string $path Path in storage zone (for logging)
-     * @return bool Success status
+     * @param string $apiKey API key to use
+     * @return bool|int Success status (true) or HTTP error code
      */
-    private function uploadToStorageWithCurl(string $url, string $content, string $path): bool
+    private function uploadToStorageWithCurl(string $url, string $content, string $path, string $apiKey = null): bool|int
     {
         try {
+            $useApiKey = $apiKey ?: $this->storageApiKey;
             // Create a temporary file with the content
             $tempFile = tempnam(sys_get_temp_dir(), 'bunny_curl_');
             $bytesWritten = file_put_contents($tempFile, $content);
@@ -651,7 +763,7 @@ class BunnyCdnService
                 CURLOPT_INFILE => $fileHandle,
                 CURLOPT_INFILESIZE => filesize($tempFile),
                 CURLOPT_HTTPHEADER => [
-                    "AccessKey: {$this->storageApiKey}",
+                    "AccessKey: {$useApiKey}",
                     'Content-Type: application/octet-stream'
                 ],
                 CURLOPT_TIMEOUT => 60,
@@ -685,7 +797,7 @@ class BunnyCdnService
                     'error' => $error,
                     'errno' => $errno
                 ]);
-                return false;
+                return $httpCode; // Return the actual HTTP error code
             }
 
             Log::info('Successfully uploaded file to BunnyCDN Storage using cURL fallback', [
@@ -891,11 +1003,320 @@ class BunnyCdnService
         return "{$cdnUrl}/{$videoId}/playlist.m3u8";
     }
 
+    /**
+     * Get progressive MP4 URL for offline cache support
+     * BunnyCDN provides MP4 files that can be downloaded and cached locally
+     *
+     * @param string $videoId Video GUID
+     * @param string $resolution Resolution (360p, 720p, 1080p, or original)
+     * @return string MP4 video URL
+     */
+    public function getMp4Url(string $videoId, string $resolution = '720p'): string
+    {
+        $cdnUrl = rtrim($this->cdnUrl, '/');
+        $videoId = trim($videoId, '/');
+
+        // BunnyCDN MP4 format: {cdn_url}/{video_guid}/play_{resolution}.mp4
+        // For original quality, use: play.mp4
+        $filename = $resolution === 'original' ? 'play.mp4' : "play_{$resolution}.mp4";
+
+        return "{$cdnUrl}/{$videoId}/{$filename}";
+    }
+
     public function getStorageUrl(string $path): string
     {
         $cdnUrl = rtrim($this->storageCdnUrl, '/');
         $cleanPath = ltrim($path, '/');
 
         return "{$cdnUrl}/{$cleanPath}";
+    }
+
+    /**
+     * 🚀 CRITICAL FIX: Configure High-Quality Encoding Profiles
+     *
+     * Bu method video kalite sorununu çözüyor!
+     * Bunny CDN'de yüksek kaliteli encoding ayarları yapılandırır
+     *
+     * @param string $videoGuid Video GUID
+     * @return array Configuration result
+     */
+    public function configureHighQualityEncoding(string $videoGuid): array
+    {
+        try {
+            $httpOptions = [];
+
+            if (app()->environment('local')) {
+                $httpOptions['verify'] = false;
+            }
+
+            // Bunny CDN API'ye yüksek kalite encoding profili gönder
+            $response = Http::withOptions($httpOptions)
+                ->withHeaders([
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'AccessKey' => $this->apiKey
+                ])
+                ->post($this->apiUrl . "/videos/{$videoGuid}", [
+                    // Encoding Quality Settings
+                    'storageClass' => 'standard', // High-speed storage
+                    'enabledResolutions' => '240p,360p,480p,720p,1080p', // All resolutions
+
+                    // Video Quality Parameters - YÜKSEK KALİTE!
+                    'videoQuality' => 95, // 0-100, 95 = YÜKSEK kalite
+                    'encodingPreset' => 'slow', // slow = daha iyi kalite (fast, medium, slow)
+
+                    // MP4 Fallback for cache
+                    'generateMP4' => true,
+
+                    // Thumbnail settings
+                    'generateSprite' => true, // Timeline preview için
+                ]);
+
+            if ($response->successful()) {
+                Log::info("✅ HIGH QUALITY encoding configured for video: {$videoGuid}", [
+                    'video_guid' => $videoGuid,
+                    'quality' => 95,
+                    'preset' => 'slow'
+                ]);
+
+                return [
+                    'success' => true,
+                    'message' => 'High-quality encoding configured',
+                    'data' => $response->json()
+                ];
+            }
+
+            Log::warning("Failed to configure high-quality encoding", [
+                'video_guid' => $videoGuid,
+                'status' => $response->status(),
+                'response' => $response->body()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Failed to configure encoding',
+                'error' => $response->json()
+            ];
+
+        } catch (\Exception $e) {
+            Log::error("High-quality encoding configuration error: {$e->getMessage()}", [
+                'video_guid' => $videoGuid,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Exception during configuration',
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 🎯 Configure Adaptive Bitrate Streaming (ABR)
+     *
+     * Internet hızına göre otomatik kalite ayarlaması
+     * Mobil cihazlar için PERFECT!
+     *
+     * @param string $videoGuid Video GUID
+     * @return array ABR configuration result
+     */
+    public function configureAdaptiveBitrate(string $videoGuid): array
+    {
+        try {
+            $httpOptions = [];
+
+            if (app()->environment('local')) {
+                $httpOptions['verify'] = false;
+            }
+
+            // Multi-bitrate HLS manifest için encoding profiles
+            $response = Http::withOptions($httpOptions)
+                ->withHeaders([
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'AccessKey' => $this->apiKey
+                ])
+                ->post($this->apiUrl . "/videos/{$videoGuid}", [
+                    // ABR Encoding Profiles
+                    'encodingProfiles' => [
+                        [
+                            'name' => '1080p',
+                            'width' => 1920,
+                            'height' => 1080,
+                            'bitrate' => 5000, // 5 Mbps - Yüksek kalite
+                            'fps' => 30,
+                        ],
+                        [
+                            'name' => '720p',
+                            'width' => 1280,
+                            'height' => 720,
+                            'bitrate' => 2800, // 2.8 Mbps - İyi internet için
+                            'fps' => 30,
+                        ],
+                        [
+                            'name' => '480p',
+                            'width' => 854,
+                            'height' => 480,
+                            'bitrate' => 1400, // 1.4 Mbps - Orta internet
+                            'fps' => 30,
+                        ],
+                        [
+                            'name' => '360p',
+                            'width' => 640,
+                            'height' => 360,
+                            'bitrate' => 800, // 800 Kbps - Yavaş internet
+                            'fps' => 30,
+                        ],
+                        [
+                            'name' => '240p',
+                            'width' => 426,
+                            'height' => 240,
+                            'bitrate' => 400, // 400 Kbps - Çok yavaş internet
+                            'fps' => 30,
+                        ],
+                    ],
+
+                    // HLS Adaptive Streaming
+                    'enableHlsAdaptiveStreaming' => true,
+                    'hlsPlaylistType' => 'vod', // Video on demand
+                ]);
+
+            if ($response->successful()) {
+                Log::info("✅ ABR (Adaptive Bitrate) configured for video: {$videoGuid}");
+
+                return [
+                    'success' => true,
+                    'message' => 'ABR configured successfully',
+                    'profiles' => ['1080p', '720p', '480p', '360p', '240p'],
+                    'data' => $response->json()
+                ];
+            }
+
+            Log::warning("ABR configuration failed", [
+                'video_guid' => $videoGuid,
+                'response' => $response->body()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'ABR configuration failed',
+                'error' => $response->json()
+            ];
+
+        } catch (\Exception $e) {
+            Log::error("ABR configuration error: {$e->getMessage()}", [
+                'video_guid' => $videoGuid
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * 📸 Get optimized thumbnail URL with WebP format
+     *
+     * WebP format: %30 daha küçük boyut, daha hızlı yükleme
+     *
+     * @param string $videoId Video GUID
+     * @param string $filename Thumbnail filename
+     * @param string $format Image format (webp, jpg, png)
+     * @param int $width Width in pixels
+     * @param int $quality Quality 1-100
+     * @return string Optimized thumbnail URL
+     */
+    public function getOptimizedThumbnailUrl(
+        string $videoId,
+        string $filename = 'thumbnail.jpg',
+        string $format = 'webp',
+        int $width = 480,
+        int $quality = 85
+    ): string {
+        $cdnUrl = rtrim($this->cdnUrl, '/');
+        $videoId = trim($videoId, '/');
+
+        $url = "{$cdnUrl}/{$videoId}/{$filename}";
+
+        // Bunny CDN image optimization parameters
+        $params = [];
+
+        if ($format === 'webp') {
+            $params[] = 'format=webp';
+        }
+
+        if ($width > 0) {
+            $params[] = "width={$width}";
+        }
+
+        if ($quality > 0 && $quality <= 100) {
+            $params[] = "quality={$quality}";
+        }
+
+        // Add optimization params
+        if (!empty($params)) {
+            $url .= '?' . implode('&', $params);
+        }
+
+        return $url;
+    }
+
+    /**
+     * 🎬 Get video metadata with encoding status
+     *
+     * Video kalitesini ve encoding durumunu kontrol et
+     *
+     * @param string $videoGuid Video GUID
+     * @return array Video metadata with encoding info
+     */
+    public function getVideoEncodingStatus(string $videoGuid): array
+    {
+        try {
+            $httpOptions = [];
+
+            if (app()->environment('local')) {
+                $httpOptions['verify'] = false;
+            }
+
+            $response = Http::withOptions($httpOptions)
+                ->withHeaders([
+                    'Accept' => 'application/json',
+                    'AccessKey' => $this->apiKey
+                ])
+                ->get($this->apiUrl . "/videos/{$videoGuid}");
+
+            if ($response->successful()) {
+                $data = $response->json();
+
+                return [
+                    'success' => true,
+                    'status' => $data['status'] ?? 'unknown',
+                    'encoding_progress' => $data['encodeProgress'] ?? 0,
+                    'available_resolutions' => $data['availableResolutions'] ?? [],
+                    'video_quality' => $data['videoQuality'] ?? null,
+                    'bitrate' => $data['averageBitrate'] ?? null,
+                    'duration' => $data['length'] ?? 0,
+                    'width' => $data['width'] ?? 0,
+                    'height' => $data['height'] ?? 0,
+                    'full_data' => $data
+                ];
+            }
+
+            return [
+                'success' => false,
+                'error' => 'Failed to fetch video metadata'
+            ];
+
+        } catch (\Exception $e) {
+            Log::error("Failed to get encoding status: {$e->getMessage()}");
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
     }
 }
