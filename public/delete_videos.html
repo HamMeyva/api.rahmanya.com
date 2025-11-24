@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Silme Aracı</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .login-section, .video-section { margin-bottom: 30px; }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover { background: #5568d3; }
+        button.danger { background: #e74c3c; }
+        button.danger:hover { background: #c0392b; }
+        .video-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+        }
+        .video-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .video-item:last-child { border-bottom: none; }
+        .video-info { flex: 1; }
+        .video-title { font-weight: bold; color: #333; }
+        .video-desc { color: #666; font-size: 14px; margin-top: 4px; }
+        .status {
+            padding: 8px 16px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+        .status.success { background: #d4edda; color: #155724; display: block; }
+        .status.error { background: #f8d7da; color: #721c24; display: block; }
+        .status.info { background: #d1ecf1; color: #0c5460; display: block; }
+        .loading { display: none; text-align: center; padding: 20px; }
+        .loading.active { display: block; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden { display: none; }
+        .stats {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .stats-item {
+            display: inline-block;
+            margin-right: 20px;
+            color: #666;
+        }
+        .stats-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ Video Silme Aracı</h1>
+        <p class="subtitle">Alper Bey Armut açıklamalı videoları sil</p>
+
+        <div id="loginSection" class="login-section">
+            <h2>Giriş Yap</h2>
+            <input type="text" id="username" placeholder="Kullanıcı adı" value="hsaffur">
+            <input type="password" id="password" placeholder="Şifre" value="password">
+            <button onclick="login()">Giriş Yap</button>
+        </div>
+
+        <div id="videoSection" class="video-section hidden">
+            <div class="stats">
+                <div class="stats-item">
+                    Toplam Video: <span class="stats-number" id="totalCount">0</span>
+                </div>
+                <div class="stats-item">
+                    Alper Bey Armut: <span class="stats-number" id="armutCount">0</span>
+                </div>
+            </div>
+
+            <button onclick="loadVideos()">Videoları Yükle</button>
+            <button class="danger" onclick="deleteAll()">Hepsini Sil</button>
+
+            <div id="status" class="status"></div>
+            <div id="loading" class="loading"><div class="spinner"></div></div>
+
+            <div id="videoList" class="video-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://api.rahmanya.com/graphql';
+        let accessToken = '';
+        let videos = [];
+
+        const DEVICE_INFO = {
+            fcm_token: "web_delete_tool",
+            device_type: "web",
+            device_os: "browser",
+            device_os_version: "1.0",
+            device_model: "chrome",
+            device_brand: "google",
+            device_unique_id: "delete_tool_001"
+        };
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = message;
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').className = show ? 'loading active' : 'loading';
+        }
+
+        async function graphqlRequest(query, variables = {}) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (accessToken) {
+                headers['Authorization'] = accessToken;
+            }
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ query, variables })
+            });
+
+            const result = await response.json();
+            if (result.errors) {
+                throw new Error(result.errors[0].message);
+            }
+            return result.data;
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            showLoading(true);
+            showStatus('Giriş yapılıyor...', 'info');
+
+            try {
+                const query = `
+                    mutation Login($input: LoginInput!) {
+                        login(input: $input) {
+                            access_token
+                            user { id nickname }
+                        }
+                    }
+                `;
+
+                const data = await graphqlRequest(query, {
+                    input: { nickname: username, password, ...DEVICE_INFO }
+                });
+
+                accessToken = data.login.access_token;
+                showStatus(`✅ Giriş başarılı: ${data.login.user.nickname}`, 'success');
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('videoSection').classList.remove('hidden');
+            } catch (error) {
+                showStatus(`❌ Giriş hatası: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadVideos() {
+            showLoading(true);
+            showStatus('Videolar yükleniyor...', 'info');
+
+            try {
+                const query = `
+                    query GetUserVideos($input: VideoFeedInput) {
+                        getUserVideos(input: $input) {
+                            videos {
+                                id
+                                video_guid
+                                title
+                                description
+                                created_at
+                            }
+                            total
+                        }
+                    }
+                `;
+
+                const data = await graphqlRequest(query, {
+                    input: { page: 1, per_page: 100 }
+                });
+
+                videos = data.getUserVideos.videos;
+                const armutVideos = videos.filter(v =>
+                    v.description && v.description.includes('Alper Bey Armut')
+                );
+
+                document.getElementById('totalCount').textContent = videos.length;
+                document.getElementById('armutCount').textContent = armutVideos.length;
+
+                displayVideos(armutVideos);
+                showStatus(`✅ ${videos.length} video yüklendi, ${armutVideos.length} Alper Bey Armut`, 'success');
+            } catch (error) {
+                showStatus(`❌ Yükleme hatası: ${error.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayVideos(videoList) {
+            const container = document.getElementById('videoList');
+            container.innerHTML = videoList.map(video => `
+                <div class="video-item">
+                    <div class="video-info">
+                        <div class="video-title">${video.title || 'Başlıksız'}</div>
+                        <div class="video-desc">${video.description || ''}</div>
+                    </div>
+                    <button class="danger" onclick="deleteVideo('${video.id}')">Sil</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteVideo(videoId) {
+            if (!confirm('Bu videoyu silmek istediğinden emin misin?')) return;
+
+            try {
+                const query = `
+                    mutation DeleteVideo($id: ID!) {
+                        deleteVideo(id: $id)
+                    }
+                `;
+
+                await graphqlRequest(query, { id: videoId });
+                showStatus(`✅ Video silindi: ${videoId}`, 'success');
+                loadVideos();
+            } catch (error) {
+                showStatus(`❌ Silme hatası: ${error.message}`, 'error');
+            }
+        }
+
+        async function deleteAll() {
+            const armutVideos = videos.filter(v =>
+                v.description && v.description.includes('Alper Bey Armut')
+            );
+
+            if (!confirm(`${armutVideos.length} videoyu silmek istediğinden emin misin?`)) return;
+
+            showLoading(true);
+            let deleted = 0;
+            let failed = 0;
+
+            for (const video of armutVideos) {
+                try {
+                    await deleteVideo(video.id);
+                    deleted++;
+                    showStatus(`Siliniyor... ${deleted}/${armutVideos.length}`, 'info');
+                } catch (error) {
+                    failed++;
+                }
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            showLoading(false);
+            showStatus(`✅ Tamamlandı! ${deleted} silindi, ${failed} hata`, 'success');
+            loadVideos();
+        }
+    </script>
+</body>
+</html>
