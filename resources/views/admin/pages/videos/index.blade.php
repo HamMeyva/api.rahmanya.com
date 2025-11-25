@@ -11,6 +11,9 @@
             <x-admin.form-elements.search-input attr="data-table-action=search" />
         </div>
         <div class="card-toolbar flex-row-fluid justify-content-end gap-5">
+            <button type="button" class="btn btn-danger btn-sm" id="bulkDeleteBtn" style="display:none;">
+                <i class="fa fa-trash"></i> Seçilenleri Sil (<span id="selectedCount">0</span>)
+            </button>
             <x-admin.filter-menu dropdownId="videosFilterMenu" buttonText="Filtrele">
                 <div class="row gap-5">
                     <div class="col-xl-12">
@@ -60,6 +63,7 @@
     <div class="card-body">
         <x-admin.data-table tableId="dataTable">
             <x-slot name="header">
+                <th><input type="checkbox" id="selectAll" class="form-check-input"></th>
                 <th>Kapak</th>
                 <th>Kullanıcı, Koleksiyon, Video</th>
                 <th>Açıklama</th>
@@ -83,6 +87,8 @@
 @section('scripts')
 <script>
     $(document).ready(function() {
+        let selectedVideos = [];
+
         let dataTable = $("#dataTable").DataTable({
             order: [],
             pageLength: 5,
@@ -104,7 +110,7 @@
                     targets: 3
                 },
                 {
-                    orderable: true,
+                    orderable: false,
                     targets: 4
                 },
                 {
@@ -116,11 +122,11 @@
                     targets: 6
                 },
                 {
-                    orderable: false,
+                    orderable: true,
                     targets: 7
                 },
                 {
-                    orderable: true,
+                    orderable: false,
                     targets: 8
                 },
                 {
@@ -140,8 +146,12 @@
                     targets: 12
                 },
                 {
-                    orderable: false,
+                    orderable: true,
                     targets: 13
+                },
+                {
+                    orderable: false,
+                    targets: 14
                 },
             ],
             "processing": true,
@@ -161,6 +171,7 @@
             },
         }).on("draw", function() {
             KTMenu.createInstances();
+            updateSelectedCount();
         });
 
         let searchTimeout;
@@ -215,6 +226,81 @@
                 }
             })
         })
+
+        // Select All checkbox
+        $(document).on('change', '#selectAll', function() {
+            const isChecked = $(this).is(':checked');
+            $('.video-checkbox:visible').prop('checked', isChecked).trigger('change');
+        });
+
+        // Individual checkbox
+        $(document).on('change', '.video-checkbox', function() {
+            const videoId = $(this).data('video-id');
+            if ($(this).is(':checked')) {
+                if (!selectedVideos.includes(videoId)) {
+                    selectedVideos.push(videoId);
+                }
+            } else {
+                selectedVideos = selectedVideos.filter(id => id !== videoId);
+                $('#selectAll').prop('checked', false);
+            }
+            updateSelectedCount();
+        });
+
+        // Bulk delete button
+        $(document).on('click', '#bulkDeleteBtn', function() {
+            if (selectedVideos.length === 0) return;
+
+            Swal.fire({
+                icon: 'warning',
+                title: `${selectedVideos.length} videoyu silmek istediğinize emin misiniz?`,
+                showConfirmButton: true,
+                showCancelButton: true,
+                allowOutsideClick: false,
+                buttonsStyling: false,
+                confirmButtonText: 'Sil',
+                cancelButtonText: 'Vazgeç',
+                customClass: {
+                    confirmButton: "btn btn-danger btn-sm",
+                    cancelButton: 'btn btn-secondary btn-sm'
+                }
+            }).then((r) => {
+                if (r.isConfirmed) {
+                    $.ajax({
+                        type: 'POST',
+                        url: `{{ route('admin.videos.bulk-destroy') }}`,
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            video_ids: selectedVideos
+                        },
+                        dataType: 'json',
+                        success: function(res) {
+                            selectedVideos = [];
+                            $('#selectAll').prop('checked', false);
+                            dataTable.draw();
+                            updateSelectedCount();
+                            swal.success({
+                                message: res.message
+                            });
+                        },
+                        error: function(xhr) {
+                            swal.error({
+                                message: xhr?.responseJSON?.message ?? null
+                            });
+                        }
+                    });
+                }
+            });
+        });
+
+        function updateSelectedCount() {
+            $('#selectedCount').text(selectedVideos.length);
+            if (selectedVideos.length > 0) {
+                $('#bulkDeleteBtn').show();
+            } else {
+                $('#bulkDeleteBtn').hide();
+            }
+        }
     })
 </script>
 @endsection

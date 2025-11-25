@@ -96,6 +96,7 @@ Route::group(['middleware' => 'auth:admin'], routes: function () {
         Route::post('/data-table', 'dataTable')->name('data-table');
         Route::get('/show/{id}', 'show')->name('show');
         Route::post('/destroy/{id?}', 'destroy')->name('destroy');
+        Route::post('/bulk-destroy', 'bulkDestroy')->name('bulk-destroy');
         Route::post('{id}/update', 'update')->name('update');
 
         Route::get('/{id}/get-like-comment-chart-data', 'getLikeCommentChartData')->name('get-like-comment-chart-data');
