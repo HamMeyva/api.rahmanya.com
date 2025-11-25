@@ -145,6 +145,20 @@
             device_unique_id: "delete_tool_001"
         };
 
+        // Get CSRF token from cookie
+        function getCsrfToken() {
+            const name = 'XSRF-TOKEN=';
+            const decodedCookie = decodeURIComponent(document.cookie);
+            const ca = decodedCookie.split(';');
+            for(let i = 0; i < ca.length; i++) {
+                let c = ca[i].trim();
+                if (c.indexOf(name) == 0) {
+                    return decodeURIComponent(c.substring(name.length));
+                }
+            }
+            return null;
+        }
+
         function showStatus(message, type = 'info') {
             const status = document.getElementById('status');
             status.className = `status ${type}`;
@@ -212,12 +226,18 @@
 
             try {
                 // Use admin API to get all videos
+                const csrfToken = getCsrfToken();
+                if (!csrfToken) {
+                    throw new Error('CSRF token bulunamadı! Admin paneline giriş yaptığınızdan emin olun.');
+                }
+
                 const response = await fetch('/admin/videos/data-table', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json',
+                        'X-XSRF-TOKEN': csrfToken
                     },
                     credentials: 'same-origin',
                     body: JSON.stringify({
@@ -322,6 +342,7 @@
             // Use admin API endpoint (same as admin panel)
             const url = `/admin/videos/${videoId}/update`;
 
+            const csrfToken = getCsrfToken();
             const formData = new FormData();
             formData.append('description', newDescription);
             formData.append('is_commentable', '1');
@@ -332,6 +353,7 @@
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
+                    'X-XSRF-TOKEN': csrfToken
                 },
                 body: formData,
                 credentials: 'same-origin' // Include cookies
