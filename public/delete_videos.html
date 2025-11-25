@@ -244,8 +244,8 @@
                         draw: 1,
                         start: 0,
                         length: 1000,
-                        search: { value: '' },
-                        is_sport: true // Filter only sport videos
+                        search: { value: '' }
+                        // Don't filter by is_sport here, we'll filter client-side
                     })
                 });
 
@@ -256,19 +256,41 @@
 
                 const result = await response.json();
 
+                console.log('API Response:', result);
+                console.log('Total videos from API:', result.recordsFiltered);
+
                 // Parse HTML to extract video data
                 videos = result.data.map((row, index) => {
-                    const idMatch = row[1].match(/>([a-f0-9]+)</);
-                    const descMatch = row[2].match(/>([^<]+)</);
+                    // row[0] = thumbnail
+                    // row[1] = IDs (user_id, collection_uuid, video_guid)
+                    // row[2] = description
+
+                    // Extract video ID from row[1] - first badge contains video_id
+                    const parser = new DOMParser();
+                    const doc1 = parser.parseFromString(row[1], 'text/html');
+                    const badges = doc1.querySelectorAll('.badge');
+                    const videoId = badges[0]?.textContent?.trim() || '';
+
+                    // Extract description from row[2]
+                    const doc2 = parser.parseFromString(row[2], 'text/html');
+                    const description = doc2.body.textContent?.trim() || '';
+
+                    console.log(`Video ${index}:`, { videoId, description: description.substring(0, 50) });
+
                     return {
-                        id: idMatch ? idMatch[1] : '',
-                        description: descMatch ? descMatch[1] : '',
+                        id: videoId,
+                        description: description,
                         title: `Video ${index + 1}`
                     };
                 }).filter(v => v.id && v.description);
+
+                console.log('Parsed videos:', videos.length);
+
                 const armutVideos = videos.filter(v =>
                     v.description && v.description.includes('Alper Bey Armut')
                 );
+
+                console.log('Armut videos:', armutVideos.length);
 
                 document.getElementById('totalCount').textContent = videos.length;
                 document.getElementById('armutCount').textContent = armutVideos.length;
