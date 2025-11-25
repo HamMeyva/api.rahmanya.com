@@ -42,13 +42,15 @@ class FeedService
 
     public function getFeedVideos(User $user, string $type = 'mixed', int $limit = 50)
     {
-        $cacheKey = "feed-videos:user:{$user->id}:{$type}";
+        // Her istek için benzersiz bir session ID oluştur - bu her giriş çıkışta farklı videolar sağlar
+        $sessionId = $this->getSessionId($user->id);
+        $cacheKey = "feed-videos:user:{$user->id}:{$type}:{$sessionId}";
         $jobInProgressKey = "feed-job-in-progress:user:{$user->id}:{$type}";
 
         // Öncelikle cache'de kayıtlı bir feed var mı kontrol et
         if (Cache::has($cacheKey)) {
             $cached = Cache::get($cacheKey);
-            
+
             // Eğer boş veya geçersiz bir cache varsa, onu yok say ve yeniden oluştur
             if (!$cached || $cached->count() <= 0) {
                 Log::warning('Empty or invalid cache found, recreating', [
@@ -59,53 +61,54 @@ class FeedService
             } else {
                 // Geçerli bir cache var - aynı videoları takip eden isteklerde göstermemek için ID'leri al
                 $videoIds = $cached->pluck('id')->toArray();
-                
+
                 // Job daha önce başlatılmadıysa başlat - arka planda yeni feed hazırla
                 if (!Cache::has($jobInProgressKey)) {
                     // Job'un başlatıldığını belirt ve kısa süre cache'le
                     Cache::put($jobInProgressKey, true, now()->addSeconds(60));
-                    
+
                     // Background job başlat ama cache'i hemen silme
                     UpdateUserFeedJob::dispatch($user->id, $type, $limit, $videoIds)
                         ->onQueue('low')
                         ->delay(now()->addSeconds(10));
-                        
+
                     Log::info('Started background job to update feed cache', [
                         'user_id' => $user->id,
                         'feed_type' => $type,
                         'videos_count' => $cached->count()
                     ]);
                 }
-                
-                // Videolar geçerli ise kullan
+
+                // Videolar geçerli ise karıştırarak kullan (her istekte farklı sıra)
                 if ($cached->count() > 0) {
-                    Log::info('Getting feed videos from cache', [
+                    Log::info('Getting feed videos from cache (shuffled)', [
                         'user_id' => $user->id,
                         'feed_type' => $type,
                         'videos_count' => $cached->count()
                     ]);
-                    return $cached;
+                    // Cache'deki videoları karıştırarak döndür - her istekte farklı sıralama
+                    return $this->shuffleFeedWithNewVideoPriority($cached);
                 }
             }
         }
 
         // Cache yok veya geçersiz/boş - DB'den getir ve yeni cache oluştur
         $videos = $this->getFeedVideosFromDb($user, ['limit' => $limit], $type);
-        
-        // Video listesini cache'le - kısa sürede yeni talep gelirse bunu kullan
+
+        // Video listesini cache'le - kısa sürede (5 dakika) yeni talep gelirse bunu kullan
         if ($videos->count() > 0) {
-            Cache::put($cacheKey, $videos, now()->addMinutes(16));
-            
+            Cache::put($cacheKey, $videos, now()->addMinutes(5)); // 16 dakikadan 5 dakikaya düşürüldü
+
             // Eğer video varsa ve cache oluştuysa, job'un başlatıldığını belirt
             Cache::put($jobInProgressKey, true, now()->addSeconds(60));
-            
+
             // 10 saniye sonra yeni bir feed oluşturmak için job planla
             UpdateUserFeedJob::dispatch($user->id, $type, $limit, $videos->pluck('id')->toArray())
                 ->onQueue('low')
                 ->delay(now()->addSeconds(20)); // Bir sonraki feed için biraz daha fazla zaman bırak
-                
+
             Log::info('Created new feed from database and scheduled refresh job', [
-                'user_id' => $user->id, 
+                'user_id' => $user->id,
                 'feed_type' => $type,
                 'videos_count' => $videos->count()
             ]);
@@ -117,6 +120,46 @@ class FeedService
         }
 
         return $videos;
+    }
+
+    /**
+     * Kullanıcının session ID'sini al veya oluştur
+     * Her uygulama açılışında yeni bir session ID oluşturulur
+     * Bu sayede her girişte farklı videolar gösterilir
+     */
+    private function getSessionId(string $userId): string
+    {
+        $sessionKey = "feed-session:user:{$userId}";
+
+        // Session ID'yi al veya yeni oluştur (3 dakika geçerli)
+        // Bu süre içinde aynı session ID kullanılır, süre dolunca yeni ID oluşturulur
+        return Cache::remember($sessionKey, now()->addMinutes(3), function () {
+            return substr(md5(microtime() . rand()), 0, 8);
+        });
+    }
+
+    /**
+     * Feed videolarını yeni videolara öncelik vererek karıştır
+     * Yeni videolar (son 24 saat) en üstte rastgele sıralanır
+     * Diğer videolar da rastgele sıralanır
+     */
+    private function shuffleFeedWithNewVideoPriority($videos)
+    {
+        $now = now();
+        $twentyFourHoursAgo = $now->copy()->subHours(24);
+
+        // Son 24 saatteki yeni videoları ayır
+        $newVideos = $videos->filter(function ($video) use ($twentyFourHoursAgo) {
+            return $video->created_at >= $twentyFourHoursAgo;
+        })->shuffle();
+
+        // Diğer videoları ayır ve karıştır
+        $olderVideos = $videos->filter(function ($video) use ($twentyFourHoursAgo) {
+            return $video->created_at < $twentyFourHoursAgo;
+        })->shuffle();
+
+        // Yeni videoları öne koyarak birleştir
+        return $newVideos->concat($olderVideos);
     }
 
     /* Feed için dbden videoları getir. */
@@ -403,21 +446,8 @@ class FeedService
             }
         }
 
-        // Videoları karıştır (ilk chunk'ı shuffle et)
-        if ($videos->count() > 2) {
-            $limitOfShuffle = intval(floor($videos->count() / 3));
-            if ($limitOfShuffle > 0) {
-                $firstChunk = $videos->take($limitOfShuffle)->shuffle();
-                $rest = $videos->slice($limitOfShuffle);
-                $videos = $firstChunk->concat($rest);
-            } else {
-                // Çok az video varsa tümünü karıştır
-                $videos = $videos->shuffle();
-            }
-        }
-
-        // Limit kadar video döndür
-        $videos = $videos->take($limit);
+        // Yeni videolara öncelik ver ve tüm listeyi karıştır
+        $videos = $this->shuffleWithNewVideoPriorityAndRandomness($videos, $limit);
 
         Log::info('Getting feed videos from DB', [
             'user_id' => $user->id,
@@ -453,5 +483,97 @@ class FeedService
     public function getWatchedVideoIds(string $userId): array
     {
         return Redis::smembers("user:{$userId}:watched_videos");
+    }
+
+    /**
+     * Videoları yeni videolara öncelik vererek ve rastgele sıralayarak karıştır
+     *
+     * Sıralama Mantığı:
+     * 1. Son 6 saatteki videolar - Çok yeni (en yüksek öncelik, karıştırılmış)
+     * 2. Son 24 saatteki videolar - Yeni (yüksek öncelik, karıştırılmış)
+     * 3. Diğer videolar - Tamamen karıştırılmış
+     *
+     * Her kategori kendi içinde shuffle edilir, böylece her istekte farklı sıralama oluşur
+     */
+    private function shuffleWithNewVideoPriorityAndRandomness($videos, int $limit)
+    {
+        $now = now();
+        $sixHoursAgo = $now->copy()->subHours(6);
+        $twentyFourHoursAgo = $now->copy()->subHours(24);
+
+        // Çok yeni videolar (son 6 saat) - en yüksek öncelik
+        $veryNewVideos = $videos->filter(function ($video) use ($sixHoursAgo) {
+            return $video->created_at >= $sixHoursAgo;
+        })->shuffle();
+
+        // Yeni videolar (6-24 saat arası)
+        $newVideos = $videos->filter(function ($video) use ($sixHoursAgo, $twentyFourHoursAgo) {
+            return $video->created_at < $sixHoursAgo && $video->created_at >= $twentyFourHoursAgo;
+        })->shuffle();
+
+        // Diğer tüm videolar
+        $olderVideos = $videos->filter(function ($video) use ($twentyFourHoursAgo) {
+            return $video->created_at < $twentyFourHoursAgo;
+        })->shuffle();
+
+        // Öncelik sırasına göre birleştir
+        $sortedVideos = $veryNewVideos->concat($newVideos)->concat($olderVideos);
+
+        // Son olarak, ilk birkaç videoyu biraz daha karıştır (feed'in başı için çeşitlilik)
+        // Bu sayede her açılışta tamamen farklı bir deneyim sunulur
+        if ($sortedVideos->count() > 5) {
+            // İlk 10 video arasından rastgele seç ve karıştır
+            $topVideos = $sortedVideos->take(10)->shuffle()->take(5);
+            $restVideos = $sortedVideos->slice(5);
+
+            // Bazı eski videoları da araya serpiştir (çeşitlilik için)
+            if ($olderVideos->count() > 3) {
+                $randomOlderVideos = $olderVideos->take(3);
+                // Yeni ve eski videoları karıştır
+                $mixedTop = $topVideos->concat($randomOlderVideos)->shuffle()->take(5);
+                $sortedVideos = $mixedTop->concat($restVideos);
+            } else {
+                $sortedVideos = $topVideos->concat($restVideos);
+            }
+        }
+
+        Log::info('Videos shuffled with new video priority', [
+            'very_new_count' => $veryNewVideos->count(),
+            'new_count' => $newVideos->count(),
+            'older_count' => $olderVideos->count(),
+            'total_count' => $sortedVideos->count()
+        ]);
+
+        return $sortedVideos->take($limit);
+    }
+
+    /**
+     * Kullanıcının feed session'ını sıfırla
+     * Bu method çağrıldığında kullanıcı yeni bir feed alacak
+     */
+    public function resetUserFeedSession(string $userId): void
+    {
+        $sessionKey = "feed-session:user:{$userId}";
+        Cache::forget($sessionKey);
+
+        // Tüm feed cache'lerini de temizle
+        foreach (['mixed', 'following', 'sport'] as $type) {
+            $pattern = "feed-videos:user:{$userId}:{$type}:*";
+            // Redis pattern ile silme - eski session cache'lerini temizle
+            try {
+                $keys = Redis::keys($pattern);
+                if (!empty($keys)) {
+                    Redis::del($keys);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to clear feed cache pattern', [
+                    'user_id' => $userId,
+                    'pattern' => $pattern,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        Log::info('User feed session reset', ['user_id' => $userId]);
     }
 }
