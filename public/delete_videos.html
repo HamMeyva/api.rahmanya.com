@@ -261,15 +261,18 @@
 
                 // Parse HTML to extract video data
                 videos = result.data.map((row, index) => {
-                    // row[0] = thumbnail
+                    // row[0] = thumbnail WITH LINK (contains video ID in href!)
                     // row[1] = IDs (user_id, collection_uuid, video_guid)
                     // row[2] = description
 
-                    // Extract video ID from row[1] - first badge contains video_id
                     const parser = new DOMParser();
-                    const doc1 = parser.parseFromString(row[1], 'text/html');
-                    const badges = doc1.querySelectorAll('.badge');
-                    const videoId = badges[0]?.textContent?.trim() || '';
+
+                    // Extract video ID from row[0] link href
+                    const doc0 = parser.parseFromString(row[0], 'text/html');
+                    const link = doc0.querySelector('a');
+                    const href = link?.getAttribute('href') || '';
+                    // href format: /admin/videos/show/{VIDEO_ID}
+                    const videoId = href.split('/').pop() || '';
 
                     // Extract description from row[2]
                     const doc2 = parser.parseFromString(row[2], 'text/html');
