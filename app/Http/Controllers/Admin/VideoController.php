@@ -84,6 +84,8 @@ class VideoController extends Controller
         $list = $query->get();
 
         $data = $list->map(function ($item) {
+            $checkbox = "<input type='checkbox' class='form-check-input video-checkbox' data-video-id='{$item->id}'>";
+
             $thumbnail = "<div class='symbol symbol-75px'>
                 <span class='symbol-label' style='background-image:url({$item->thumbnail_url});'></span>
             </div>";
@@ -100,6 +102,7 @@ class VideoController extends Controller
 
 
             return [
+                $checkbox,
                 view('components.link', [
                     'label' => $thumbnail,
                     'url' => route('admin.videos.show', ['id' => $item->id])
@@ -158,6 +161,29 @@ class VideoController extends Controller
 
         return response()->json([
             'message' => "Video başarıyla silindi.",
+        ]);
+    }
+
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $request->validate([
+            'video_ids' => 'required|array',
+            'video_ids.*' => 'required|string'
+        ]);
+
+        $videoIds = $request->input('video_ids');
+        $deletedCount = 0;
+
+        foreach ($videoIds as $id) {
+            $video = Video::find($id);
+            if ($video) {
+                $video->delete();
+                $deletedCount++;
+            }
+        }
+
+        return response()->json([
+            'message' => "{$deletedCount} video başarıyla silindi.",
         ]);
     }
 
