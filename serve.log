@@ -1,0 +1,26 @@
+PHP Deprecated:  Case statements followed by a semicolon (;) are deprecated, use a colon (:) instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/react/promise/src/functions.php on line 300
+
+Deprecated: Case statements followed by a semicolon (;) are deprecated, use a colon (:) instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/react/promise/src/functions.php on line 300
+PHP Deprecated:  Non-canonical cast (integer) is deprecated, use the (int) cast instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/mongodb/mongodb/src/functions.php on line 407
+
+Deprecated: Non-canonical cast (integer) is deprecated, use the (int) cast instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/mongodb/mongodb/src/functions.php on line 407
+PHP Deprecated:  Non-canonical cast (integer) is deprecated, use the (int) cast instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/mongodb/mongodb/src/functions.php on line 408
+
+Deprecated: Non-canonical cast (integer) is deprecated, use the (int) cast instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/mongodb/mongodb/src/functions.php on line 408
+PHP Deprecated:  Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/laravel/framework/config/database.php on line 61
+
+Deprecated: Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/laravel/framework/config/database.php on line 61
+PHP Deprecated:  Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/laravel/framework/config/database.php on line 81
+
+Deprecated: Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/laravel/framework/config/database.php on line 81
+PHP Deprecated:  Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/config/database.php on line 61
+
+Deprecated: Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/config/database.php on line 61
+PHP Deprecated:  Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/config/database.php on line 81
+
+Deprecated: Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in /Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/config/database.php on line 81
+
+   INFO  Server running on [http://0.0.0.0:8001].  
+
+  Press Ctrl+C to stop the server
+
