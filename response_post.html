@@ -1,0 +1,36 @@
+Note: Unnecessary use of -X or --request, POST is already inferred.
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 127.0.0.1:8001...
+* Connected to 127.0.0.1 (127.0.0.1) port 8001
+> POST /graphql HTTP/1.1
+> Host: 127.0.0.1:8001
+> User-Agent: curl/8.7.1
+> Content-Type: application/json
+> Accept: application/json
+> Content-Length: 46
+> 
+} [46 bytes data]
+* upload completely sent off: 46 bytes
+< HTTP/1.1 200 OK
+< Host: 127.0.0.1:8001
+< Connection: close
+< X-Powered-By: PHP/8.5.0
+< Cache-Control: no-cache, private
+< Date: Mon, 22 Dec 2025 23:25:28 GMT
+< Content-Type: application/json
+< phpdebugbar-id: 01KD463KMQTCBYRMRNJJFSVXNX
+< Vary: Origin
+< 
+{ [1253 bytes data]
+100  1299    0  1253  100    46  29191   1071 --:--:-- --:--:-- --:--:-- 30928
+* Closing connection
+<br />
+<b>Deprecated</b>:  Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in <b>/Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/laravel/framework/config/database.php</b> on line <b>61</b><br />
+<br />
+<b>Deprecated</b>:  Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in <b>/Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/vendor/laravel/framework/config/database.php</b> on line <b>81</b><br />
+<br />
+<b>Deprecated</b>:  Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in <b>/Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/config/database.php</b> on line <b>61</b><br />
+<br />
+<b>Deprecated</b>:  Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5, use Pdo\Mysql::ATTR_SSL_CA instead in <b>/Users/tahir/Documents/rahmanya-backend/api.rahmanya.com/config/database.php</b> on line <b>81</b><br />
+{"errors":[{"message":"Cannot query field \"user\" on type \"Query\".","locations":[{"line":1,"column":9}],"extensions":{"file":"\/Users\/tahir\/Documents\/rahmanya-backend\/api.rahmanya.com\/vendor\/webonyx\/graphql-php\/src\/Validator\/Rules\/FieldsOnCorrectType.php","line":43}}]}
