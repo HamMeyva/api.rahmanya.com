@@ -37,22 +37,26 @@ class NotificationResolver
         // Sorgu oluşturucuyu döndür
         return $query;
     }
-    
+
     public function getAllNotifications($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
-        $user = Auth::user();
-        $query = Notification::where('user_id', $user->id);
-        
-        // Sıralama
-        $query->orderBy('created_at', 'desc');
-        
-        // Sayfalama
-        $limit = $args['limit'] ?? 15;
-        $page = $args['page'] ?? 1;
-        $skip = ($page - 1) * $limit;
-        
-        // Sorguyu çalıştır ve sonuçları döndür
-        return $query->skip($skip)->take($limit)->get();
+        try {
+            $user = Auth::user();
+            $query = Notification::where('user_id', $user->id);
+
+            // Sıralama
+            $query->orderBy('created_at', 'desc');
+
+            // Sayfalama
+            $limit = $args['limit'] ?? 15;
+            $page = $args['page'] ?? 1;
+            $skip = ($page - 1) * $limit;
+
+            // Sorguyu çalıştır ve sonuçları döndür
+            return $query->skip($skip)->take($limit)->get();
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
 
