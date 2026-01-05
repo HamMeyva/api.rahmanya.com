@@ -799,30 +799,24 @@ class VideoResolver
     {
         try {
             $user = $this->getUser();
-            $input = $args['input'];
+            $options = $args['input'] ?? [];
+            $perPage = $options['per_page'] ?? 50;
 
-            // Kullanıcı tercihleri
-            $preferedLanguage = $user->preferred_language_id;
-            $cityId = $user->city_id;
-            $countryId = $user->country_id;
-
-            // ... (FeedService logic here, but we will just rely on the service call)
-            // For now, let's keep it simple and just try to call the service, if it fails, return empty.
-
-            // NOTE: Since we are debugging and Redis is broken, let's just return empty immediately if we want to confirm stability, 
-            // OR try the code and catch.
-            // Let's try to execute the original logic (which I don't fully see yet) but I will just assume the user wants me to FIX it.
-            // Since I cannot see the full code to wrap it precisely, I will REPLACE the start of the function to add a try block
-            // and checking if I can see where it ends.
-            // BETTER STRATEGY: View the file again to get the full method content.
-            return [
-                'videos' => [],
-                'ads' => []
-            ];
+            $feedService = app(FeedService::class);
+            return $feedService->getFeed($user, 'mixed', $perPage);
         } catch (\Throwable $e) {
+            Log::error('getVideoFeed hatası', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return [
                 'videos' => [],
-                'ads' => []
+                'ads' => [],
+                'page' => 1,
+                'per_page' => 50,
+                'total' => 0,
+                'has_more' => false,
+                'current_page' => 1,
             ];
         }
     }
