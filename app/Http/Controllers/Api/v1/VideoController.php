@@ -72,8 +72,8 @@ class VideoController extends Controller
         }
 
         $videos = $query->with(['user'])
-                        ->withCount('video_likes')
-                        ->paginate($perPage, ['*'], 'page', $page);
+            ->withCount('video_likes')
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'success' => true,
@@ -127,10 +127,10 @@ class VideoController extends Controller
         $page = $request->input('page', 1);
 
         $videos = Video::where('is_private', false)
-                       ->orderBy('trending_score', 'desc')
-                       ->with(['user'])
-                       ->withCount('video_likes')
-                       ->paginate($perPage, ['*'], 'page', $page);
+            ->orderBy('trending_score', 'desc')
+            ->with(['user'])
+            ->withCount('video_likes')
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'success' => true,
@@ -213,8 +213,8 @@ class VideoController extends Controller
     public function show(Request $request, $id)
     {
         $video = Video::with(['user', 'video_comments.user', 'video_comments.replies.user'])
-                      ->withCount('video_likes')
-                      ->find($id);
+            ->withCount('video_likes')
+            ->find($id);
 
         if (!$video) {
             return response()->json([
@@ -299,6 +299,69 @@ class VideoController extends Controller
     }
 
     /**
+     * Process video metadata authenticated with Server Key
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function processMetadataWithKey(Request $request)
+    {
+        $serverKey = $request->header('X-Server-Key') ?? $request->input('server_key');
+
+        if ($serverKey !== 'dba2e326d47e1f7ed887724b39aa281e') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Server Key',
+            ], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'video_id' => 'required|string',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'product_id' => 'required|string', // Ensure product_id is provided
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Ideally we should map the Seller to a User.
+        // For now, let's find a default "Seller" user or create one, OR pick the first admin.
+        // Or if we can send a trusted user_id from the Seller App (if known).
+        // Let's use a placeholder user or the first user for now to avoid constraint errors.
+        // IMPROVEMENT: Create a specific 'System Seller' user in migration.
+        $user = User::first();
+
+        $videoId = $request->input('video_id');
+        $metadata = $request->all();
+
+        // Ensure we pass the user object expected by videoService
+        $result = $this->videoService->processVideoMetadata($user, $videoId, $metadata);
+
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+                'error' => $result['error'] ?? null,
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Video metadata processed successfully (Server Key)',
+            'data' => [
+                'video' => new VideoResource($result['data']['video']),
+                'videoId' => $result['data']['videoId'],
+            ],
+        ]);
+    }
+
+    /**
      * Process video metadata after client-side upload to BunnyCDN
      *
      * @param Request $request
@@ -373,8 +436,8 @@ class VideoController extends Controller
 
         $user = $request->user();
         $existingLike = VideoLike::where('user_id', $user->id)
-                                 ->where('video_id', $video->id)
-                                 ->first();
+            ->where('video_id', $video->id)
+            ->first();
 
         if ($existingLike) {
             // Unlike
@@ -633,8 +696,8 @@ class VideoController extends Controller
 
         // Get paginated results
         $videos = $query->with(['user'])
-                        ->withCount('video_likes')
-                        ->paginate($perPage, ['*'], 'page', $page);
+            ->withCount('video_likes')
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'success' => true,
