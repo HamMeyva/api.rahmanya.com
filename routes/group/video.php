@@ -27,9 +27,12 @@ Route::prefix('video')->middleware('auth:sanctum')
         Route::post('/{videoId}/{comment}/reply', 'replyToComment');
 
 
+
+        Route::post('/process-metadata', 'processMetadata');
         Route::post('/{videoId}/update', 'updateVideoData');
 
         Route::post('/report-video/{videoId}', 'reportVideo');
+
 
 
     });

@@ -41,6 +41,7 @@ class Video extends Model
         'is_featured',
         'tags',
         'mentions',
+        'product_id', // Link to commerce product
         // New fields for TikTok-like functionality
         'duration',
         'width',
@@ -155,7 +156,8 @@ class Video extends Model
      */
     public function getVideoUrlAttribute()
     {
-        if (!$this->video_guid) return null;
+        if (!$this->video_guid)
+            return null;
 
         return app(BunnyCdnService::class)->getStreamUrl($this->video_guid);
 
@@ -243,7 +245,8 @@ class Video extends Model
      */
     public function getThumbnailWebpUrlAttribute()
     {
-        if (!$this->video_guid) return null;
+        if (!$this->video_guid)
+            return null;
 
         $fileName = $this->thumbnail_filename ?? 'thumbnail.jpg';
 
@@ -264,7 +267,8 @@ class Video extends Model
      */
     public function getVideoMp4UrlAttribute()
     {
-        if (!$this->video_guid) return null;
+        if (!$this->video_guid)
+            return null;
 
         // Return 720p MP4 for optimal cache size vs quality
         // Mobile devices can download and cache this file for offline playback
@@ -310,7 +314,7 @@ class Video extends Model
         }
 
         // Eğer user_data bir nesne değilse, nesneye dönüştür
-        $userData = is_object($this->user_data) ? $this->user_data : (object)$this->user_data;
+        $userData = is_object($this->user_data) ? $this->user_data : (object) $this->user_data;
 
         // User nesnesi oluştur ve özellikleri ata
         $user = new \App\Models\User();
@@ -337,7 +341,7 @@ class Video extends Model
         // Eğer user_data bir nesne değilse, nesneye dönüştür
         return is_object($this->attributes['user_data'])
             ? $this->attributes['user_data']
-            : (object)$this->attributes['user_data'];
+            : (object) $this->attributes['user_data'];
     }
 
     /**
