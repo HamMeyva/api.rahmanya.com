@@ -330,12 +330,35 @@ class VideoController extends Controller
             ], 422);
         }
 
-        // Ideally we should map the Seller to a User.
-        // For now, let's find a default "Seller" user or create one, OR pick the first admin.
-        // Or if we can send a trusted user_id from the Seller App (if known).
-        // Let's use a placeholder user or the first user for now to avoid constraint errors.
-        // IMPROVEMENT: Create a specific 'System Seller' user in migration.
-        $user = User::first();
+        // Handle Seller Identity
+        $sellerId = $request->input('seller_id');
+        $sellerName = $request->input('seller_name') ?? 'Seller';
+
+        if ($sellerId) {
+            $username = 'seller_' . $sellerId;
+            $user = User::where('username', $username)->first();
+
+            if (!$user) {
+                // Create new shadow user for this seller
+                $user = User::create([
+                    'name' => $sellerName,
+                    'username' => $username,
+                    'email' => $username . '@seller.rahmanya.com',
+                    'password' => bcrypt(\Illuminate\Support\Str::random(16)),
+                    'is_approved' => true,
+                    // 'account_type' => 'seller', 
+                ]);
+            } else {
+                // Update name if changed
+                if ($user->name !== $sellerName) {
+                    $user->name = $sellerName;
+                    $user->save();
+                }
+            }
+        } else {
+            // Fallback
+            $user = User::first();
+        }
 
         $videoId = $request->input('video_id');
         $metadata = $request->all();
