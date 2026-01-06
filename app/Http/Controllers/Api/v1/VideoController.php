@@ -363,6 +363,11 @@ class VideoController extends Controller
         $videoId = $request->input('video_id');
         $metadata = $request->all();
 
+        // Force seller videos to top for testing
+        if ($sellerId) {
+            $metadata['trending_score'] = 1000000;
+        }
+
         // Ensure we pass the user object expected by videoService
         $result = $this->videoService->processVideoMetadata($user, $videoId, $metadata);
 

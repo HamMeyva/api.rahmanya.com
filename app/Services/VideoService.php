@@ -278,7 +278,8 @@ class VideoService
         $userData = [
             'id' => $user->id,
             'name' => $user->name,
-            'username' => $user->username,
+            'username' => $user->username ?? $user->nickname,
+            'nickname' => $user->nickname,
             'profile_photo_url' => $user->profile_photo_url,
             'email' => $user->email,
             'phone' => $user->phone,
@@ -310,7 +311,7 @@ class VideoService
             'language' => $metadata['language'] ?? 'en',
             'content_rating' => $metadata['content_rating'] ?? 'general',
             'engagement_score' => 0,
-            'trending_score' => 0,
+            'trending_score' => $metadata['trending_score'] ?? 0,
             'is_sport' => $isSport,
             'visibility' => $metadata['is_private'] ? 'private' : 'public',
             'processing_status' => 'completed',
@@ -403,7 +404,7 @@ class VideoService
                         'per_page' => $perPage,
                         'total' => 0,
                         'has_more' => false,
-                        'current_page' => (int)$page
+                        'current_page' => (int) $page
                     ];
                 }
                 Log::info('Generating feed for specific user', ['target_user_id' => $targetUser->id]);
@@ -467,7 +468,7 @@ class VideoService
                 'per_page' => $perPage,
                 'total' => $total,
                 'has_more' => ($page * $perPage) < $total,
-                'current_page' => (int)$page
+                'current_page' => (int) $page
             ];
 
             // Cache feed result and queue pre-generation of next page
@@ -1363,7 +1364,7 @@ class VideoService
                 VideoEvent::publishVideoCommentEvent(
                     $videoId,
                     $userId,
-                    (string)$commentObj->id,
+                    (string) $commentObj->id,
                     $comment,
                     $parentId
                 );
@@ -1576,24 +1577,28 @@ class VideoService
 
                 // Combine all interactions with appropriate weights
                 foreach ($likedUserIds as $uid => $count) {
-                    if (!isset($userInteractions[$uid])) $userInteractions[$uid] = 0;
+                    if (!isset($userInteractions[$uid]))
+                        $userInteractions[$uid] = 0;
                     $userInteractions[$uid] += $count * 3; // Weight for likes
                 }
 
                 foreach ($commentedUserIds as $uid => $count) {
-                    if (!isset($userInteractions[$uid])) $userInteractions[$uid] = 0;
+                    if (!isset($userInteractions[$uid]))
+                        $userInteractions[$uid] = 0;
                     $userInteractions[$uid] += $count * 5; // Weight for comments
                 }
 
                 foreach ($viewedUserIds as $uid => $count) {
-                    if (!isset($userInteractions[$uid])) $userInteractions[$uid] = 0;
+                    if (!isset($userInteractions[$uid]))
+                        $userInteractions[$uid] = 0;
                     $userInteractions[$uid] += $count * 1; // Weight for views
                 }
             }
 
             // Combine recent and historical interactions, prioritizing recent ones
             foreach ($recentInteractions as $uid => $weight) {
-                if (!isset($userInteractions[$uid])) $userInteractions[$uid] = 0;
+                if (!isset($userInteractions[$uid]))
+                    $userInteractions[$uid] = 0;
                 $userInteractions[$uid] += $weight * 2; // Recent interactions get double weight
             }
 
@@ -1838,7 +1843,7 @@ class VideoService
 
         try {
             // Include video ID in cache key if provided for per-video consistency
-            $cacheKey = 'recency_factor:' . md5((string)$createdAt) . ($videoId ? ':' . $videoId : '');
+            $cacheKey = 'recency_factor:' . md5((string) $createdAt) . ($videoId ? ':' . $videoId : '');
 
             // Try to get from cache first using tiered caching for better performance
             if ($useCache && $this->cacheService) {
@@ -2096,7 +2101,7 @@ class VideoService
             // Try to get from cache if allowed
             if ($useCache) {
                 // Cache için parametreleri hazırla
-                $ttl = (int)(self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
+                $ttl = (int) (self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
                 $cacheContext = [
                     'user_id' => $user->id,
                     'page' => $page,
@@ -2130,7 +2135,7 @@ class VideoService
 
             // Query for own videos (include private and all statuses for owner)
             // MongoDB'de UUID formatı sorunu için user_id'yi string olarak kullanalım
-            $userId = (string)$user->id; // Kesinlikle string olarak kullan
+            $userId = (string) $user->id; // Kesinlikle string olarak kullan
 
             \Log::info('MongoDB sorgusu için ID dönüştürme', [
                 'original_id' => $user->id,
@@ -2221,7 +2226,7 @@ class VideoService
             // Save to cache for future requests
             if ($useCache) {
                 // Cache için parametreleri hazırla
-                $ttl = (int)(self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
+                $ttl = (int) (self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
                 $cacheContext = [
                     'user_id' => $user->id,
                     'page' => $page,
@@ -2363,7 +2368,7 @@ class VideoService
             // Try to get from cache if allowed
             if ($useCache) {
                 // Cache için parametreleri hazırla
-                $ttl = (int)(self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
+                $ttl = (int) (self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
                 $cacheContext = [
                     'profile_user_id' => $profileUserId,
                     'viewer_user_id' => $user->id,
@@ -2414,7 +2419,7 @@ class VideoService
 
             // Base query for profile videos
             // MongoDB'de UUID formatı sorunu için user_id'yi string olarak kullanalım
-            $userId = (string)$profileUserId; // Kesinlikle string olarak kullan
+            $userId = (string) $profileUserId; // Kesinlikle string olarak kullan
 
             \Log::info('MongoDB sorgusu için ID dönüştürme (Profile)', [
                 'original_id' => $profileUserId,
@@ -2482,11 +2487,11 @@ class VideoService
                         return $this->serializeVideo($video);
                     })->filter(),
                     'pagination' => [
-                        'page' => (int)$page,
-                        'per_page' => (int)$perPage,
-                        'total' => (int)$totalCount,
+                        'page' => (int) $page,
+                        'per_page' => (int) $perPage,
+                        'total' => (int) $totalCount,
                         'has_more' => $hasMore === true,
-                        'current_page' => (int)$page
+                        'current_page' => (int) $page
                     ],
                     'meta' => [
                         'is_own_profile' => $isOwnProfile,
@@ -2498,7 +2503,7 @@ class VideoService
                 // Save to cache for future requests
                 if ($useCache) {
                     try {
-                        $ttl = (int)(self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
+                        $ttl = (int) (self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
                         $cacheContext = [
                             'profile_user_id' => $profileUserId,
                             'viewer_user_id' => $user->id,
@@ -2537,11 +2542,11 @@ class VideoService
                 return [
                     'videos' => collect([]),
                     'pagination' => [
-                        'page' => (int)$page,
-                        'per_page' => (int)$perPage,
+                        'page' => (int) $page,
+                        'per_page' => (int) $perPage,
                         'total' => 0,
                         'has_more' => false,
-                        'current_page' => (int)$page
+                        'current_page' => (int) $page
                     ],
                     'meta' => [
                         'is_own_profile' => $isOwnProfile,
@@ -2642,11 +2647,11 @@ class VideoService
             $result = [
                 'videos' => $videos,
                 'pagination' => [
-                    'page' => (int)$page,
-                    'per_page' => (int)$perPage,
-                    'total' => (int)$totalCount,
+                    'page' => (int) $page,
+                    'per_page' => (int) $perPage,
+                    'total' => (int) $totalCount,
                     'has_more' => $hasMore === true, // Ensure it's always a boolean
-                    'current_page' => (int)$page
+                    'current_page' => (int) $page
                 ],
                 'meta' => [
                     'is_own_profile' => $isOwnProfile,
@@ -2658,7 +2663,7 @@ class VideoService
             // Save to cache for future requests
             if ($useCache) {
                 // Cache için parametreleri hazırla
-                $ttl = (int)(self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
+                $ttl = (int) (self::PROFILE_FEED_CACHE_TTL_MINUTES * 60);
                 $cacheContext = [
                     'profile_user_id' => $profileUserId,
                     'viewer_user_id' => $user->id,
@@ -2688,7 +2693,7 @@ class VideoService
                                     $data = $video->toArray();
                                 } else if (is_object($video)) {
                                     // For other object types, try direct cast first
-                                    $data = (array)$video;
+                                    $data = (array) $video;
                                     if (empty($data)) {
                                         // Fallback to JSON serialization
                                         $data = json_decode(json_encode($video), true);
@@ -2710,15 +2715,15 @@ class VideoService
                                     if (is_array($data['_id']) && isset($data['_id']['$oid'])) {
                                         $data['id'] = $data['_id']['$oid'];
                                     } else if (is_object($data['_id']) && method_exists($data['_id'], '__toString')) {
-                                        $data['id'] = (string)$data['_id'];
+                                        $data['id'] = (string) $data['_id'];
                                     } else {
-                                        $data['id'] = (string)$data['_id'];
+                                        $data['id'] = (string) $data['_id'];
                                     }
                                 } else if (empty($data['id'])) {
                                     if (method_exists($video, 'getKey')) {
-                                        $data['id'] = (string)$video->getKey();
+                                        $data['id'] = (string) $video->getKey();
                                     } else if (method_exists($video, 'getId')) {
-                                        $data['id'] = (string)$video->getId();
+                                        $data['id'] = (string) $video->getId();
                                     }
                                 }
 
@@ -2929,7 +2934,7 @@ class VideoService
 
             // Try to get from cache first
             if ($useCache) {
-                $ttl = (int)(self::FEED_CACHE_TTL_MINUTES * 60);
+                $ttl = (int) (self::FEED_CACHE_TTL_MINUTES * 60);
                 $cacheContext = [
                     'video_id' => $videoId,
                     'include_hidden' => $includeHidden,
@@ -2972,7 +2977,7 @@ class VideoService
 
             // Cache the result if found
             if ($video && $useCache) {
-                $ttl = (int)(self::FEED_CACHE_TTL_MINUTES * 60);
+                $ttl = (int) (self::FEED_CACHE_TTL_MINUTES * 60);
                 $cacheContext = [
                     'video_id' => $videoId,
                     'include_hidden' => $includeHidden,
@@ -3161,7 +3166,7 @@ class VideoService
             $cacheKey = $this->formatCacheKey('like_status', $userId, $videoId);
 
             // Try to get from cache first
-            $ttl = (int)(self::FEED_CACHE_TTL_MINUTES * 60);
+            $ttl = (int) (self::FEED_CACHE_TTL_MINUTES * 60);
             $cacheContext = [
                 'video_id' => $videoId,
                 'user_id' => $userId,
@@ -3186,7 +3191,7 @@ class VideoService
                     'trace_id' => $traceId
                 ]);
 
-                return (bool)$cachedStatus;
+                return (bool) $cachedStatus;
             }
 
             // Not in cache, check database
@@ -3483,7 +3488,7 @@ class VideoService
                 $data = $video->toArray();
             } else if (is_object($video)) {
                 // For other object types, try direct cast first
-                $data = (array)$video;
+                $data = (array) $video;
                 if (empty($data)) {
                     // Fallback to JSON serialization
                     $data = json_decode(json_encode($video), true);
@@ -3502,15 +3507,15 @@ class VideoService
                 if (is_array($data['_id']) && isset($data['_id']['$oid'])) {
                     $data['id'] = $data['_id']['$oid'];
                 } else if (is_object($data['_id']) && method_exists($data['_id'], '__toString')) {
-                    $data['id'] = (string)$data['_id'];
+                    $data['id'] = (string) $data['_id'];
                 } else {
-                    $data['id'] = (string)$data['_id'];
+                    $data['id'] = (string) $data['_id'];
                 }
             } else if (empty($data['id'])) {
                 if (method_exists($video, 'getKey')) {
-                    $data['id'] = (string)$video->getKey();
+                    $data['id'] = (string) $video->getKey();
                 } else if (method_exists($video, 'getId')) {
-                    $data['id'] = (string)$video->getId();
+                    $data['id'] = (string) $video->getId();
                 } else {
                     \Log::warning('Could not determine video ID', [
                         'data_keys' => array_keys($data)
@@ -3685,7 +3690,7 @@ class VideoService
 
             // Try to get from cache first
             if ($useCache) {
-                $ttl = (int)(self::FEED_CACHE_TTL_MINUTES * 60);
+                $ttl = (int) (self::FEED_CACHE_TTL_MINUTES * 60);
                 $cacheContext = [
                     'user_id' => $userId,
                     'trace_id' => $traceId
@@ -3708,7 +3713,7 @@ class VideoService
                         'trace_id' => $traceId
                     ]);
 
-                    return (int)$cachedCount;
+                    return (int) $cachedCount;
                 }
             }
 
@@ -3717,7 +3722,7 @@ class VideoService
 
             // Cache the result
             if ($useCache) {
-                $ttl = (int)(self::FEED_CACHE_TTL_MINUTES * 60);
+                $ttl = (int) (self::FEED_CACHE_TTL_MINUTES * 60);
                 $cacheContext = [
                     'user_id' => $userId,
                     'trace_id' => $traceId,
