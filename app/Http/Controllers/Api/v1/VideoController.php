@@ -335,15 +335,15 @@ class VideoController extends Controller
         $sellerName = $request->input('seller_name') ?? 'Seller';
 
         if ($sellerId) {
-            $username = 'seller_' . $sellerId;
-            $user = User::where('username', $username)->first();
+            $nickname = 'seller_' . $sellerId;
+            $user = User::where('nickname', $nickname)->first();
 
             if (!$user) {
                 // Create new shadow user for this seller
                 $user = User::create([
                     'name' => $sellerName,
-                    'username' => $username,
-                    'email' => $username . '@seller.rahmanya.com',
+                    'nickname' => $nickname,
+                    'email' => $nickname . '@seller.rahmanya.com',
                     'password' => bcrypt(\Illuminate\Support\Str::random(16)),
                     'is_approved' => true,
                     // 'account_type' => 'seller', 
