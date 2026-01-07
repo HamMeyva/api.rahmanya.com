@@ -289,6 +289,8 @@ class VideoService
         return [
             'video_guid' => $videoId,
             'user_id' => $user->id,
+            'product_id' => $metadata['product_id'] ?? null,
+            'seller_id' => $metadata['seller_id'] ?? null,
             'title' => $metadata['title'] ?? 'Untitled Video',
             'name' => $metadata['title'] ?? 'Untitled Video',
             'description' => $metadata['description'] ?? '',
