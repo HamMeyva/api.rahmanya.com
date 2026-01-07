@@ -1,0 +1,252 @@
+# PK Battle sistemi için GraphQL şeması
+
+# --- 📌 Start::Response Models ---
+type PKBattle {
+    id: ID!
+    live_stream_id: ID!
+    challenger_id: ID!
+    opponent_id: ID!
+    opponent_stream_id: String
+    cohost_stream_ids: [String!]  # Additional cohost stream IDs (not in PK)
+
+    status: PKBattleStatus!
+    battle_phase: PKBattlePhase!
+    challenger_score: Int!
+    opponent_score: Int!
+    winner_id: ID
+    battle_id: String
+    duration_seconds: Int
+    countdown_duration: Int
+    countdown_started_at: DateTime
+    server_sync_time: DateTime
+    last_activity_at: DateTime
+    challenger_gift_count: Int
+    opponent_gift_count: Int
+    total_gift_value: Int
+    challenger_stream_status: StreamStatus
+    opponent_stream_status: StreamStatus
+    battle_config: JSON
+    started_at: DateTime
+    ended_at: DateTime
+
+    # Round system
+    total_rounds: Int!
+    current_round: Int!
+    round_duration_minutes: Int!
+    challenger_goals: Int!
+    opponent_goals: Int!
+    is_round_active: Boolean!
+    round_started_at: DateTime
+    round_ends_at: DateTime
+    round_scores: JSON
+
+    created_at: DateTime!
+    updated_at: DateTime!
+    liveStream: AgoraChannel @belongsTo
+    challenger: User @belongsTo
+    opponent: User @belongsTo
+    winner: User @belongsTo
+}
+
+enum PKBattleStatus {
+    PENDING
+    ACTIVE
+    FINISHED
+    CANCELLED
+}
+
+enum PKBattlePhase {
+    COUNTDOWN
+    ACTIVE
+    PAUSED
+    ENDED
+}
+
+enum StreamStatus {
+    CONNECTED
+    DISCONNECTED
+    RECONNECTING
+}
+
+type PKBattleStateSync {
+    success: Boolean!
+    message: String!
+    battle: PKBattle
+    server_time: DateTime!
+    sync_data: JSON
+}
+
+type PKBattleTimerSync {
+    success: Boolean!
+    battle_id: ID!
+    server_time: DateTime!
+    countdown_remaining: Int
+    battle_phase: PKBattlePhase!
+    is_synced: Boolean!
+}
+
+type InvitePKBattleResponse {
+    success: Boolean!
+    message: String!
+    battle: PKBattle
+}
+
+type AcceptPKBattleResponse {
+    success: Boolean!
+    message: String!
+    battle: PKBattle
+}
+
+type RejectPKBattleResponse {
+    success: Boolean!
+    message: String!
+}
+
+type EndPKBattleResponse {
+    success: Boolean!
+    message: String!
+    battle: PKBattle
+}
+
+type StartMultiPlayerPKBattleResponse {
+    success: Boolean!
+    message: String!
+    battle: PKBattle
+    battle_id: String
+}
+
+type FindRandomOpponentsResponse {
+    success: Boolean!
+    message: String
+    opponents: [JSON!]!
+    battle_type: String!
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input InvitePKBattleInput {
+    liveStreamId: ID!
+    opponentId: ID!
+    opponentStreamId: String  # Cohost stream ID (opsiyonel, yoksa otomatik bulunur)
+    totalRounds: Int  # Devre sayısı (1, 3, 5, 7) - default: 3
+    roundDurationMinutes: Int  # Her devre süresi (dakika: 5, 10, 15) - default: 5
+}
+
+input StartMultiPlayerPKBattleInput {
+    live_stream_id: ID!
+    type: String! # "1v1", "2v2", "3v3", "royal"
+    participants: [ID!]!
+    round_duration: Int # saniye
+    total_rounds: Int
+}
+
+input SyncBattleStateInput {
+    battle_id: ID!
+    client_timestamp: DateTime!
+    battle_phase: PKBattlePhase
+    stream_status: StreamStatus
+}
+
+input UpdateStreamStatusInput {
+    battle_id: ID!
+    stream_status: StreamStatus!
+    error_data: JSON
+}
+
+input LogBattleEventInput {
+    battle_id: ID!
+    event_type: String!
+    event_data: JSON
+    client_timestamp: DateTime
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    pkBattle(id: ID!): PKBattle
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@pkBattle")
+
+    """
+    Get active PK battle for a specific stream (for late joiners & cohosts)
+    Returns null if no active battle exists for this stream
+    """
+    activePKBattle(streamId: ID!): PKBattle
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@activePKBattle")
+
+    activePKBattles: [PKBattle!]!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@activePKBattles")
+        
+    pendingPKBattleInvitations: [PKBattle!]!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@pendingPKBattleInvitations")
+        
+    testNotifications: [DatabaseNotification!]!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@testNotifications")
+        
+    syncBattleTimer(battle_id: ID!): PKBattleTimerSync!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@syncBattleTimer")
+    
+    # TikTok style PK Battle features
+    findRandomOpponents(live_stream_id: ID!, battle_type: String): FindRandomOpponentsResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@findRandomOpponents")
+}
+# --- 📌 End::Query ---
+
+type DatabaseNotification {
+    id: ID!
+    type: String!
+    data: JSON!
+    read_at: DateTime
+    created_at: DateTime!
+}
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    "Public within transaction"
+    inviteToPKBattle(input: InvitePKBattleInput!): InvitePKBattleResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@inviteToPKBattle")
+
+    "Public within transaction"
+    acceptPKBattle(battleId: ID!): AcceptPKBattleResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@acceptPKBattle")
+
+    "Public within transaction"
+    rejectPKBattle(battleId: ID!): RejectPKBattleResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@rejectPKBattle")
+
+    "Public within transaction"
+    endPKBattle(battleId: ID!): EndPKBattleResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@endPKBattle")
+
+    "Public within transaction"
+    syncBattleState(input: SyncBattleStateInput!): PKBattleStateSync!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@syncBattleState")
+
+    "Public within transaction"
+    updateStreamStatus(input: UpdateStreamStatusInput!): PKBattleStateSync!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@updateStreamStatus")
+
+    "Public within transaction"
+    logBattleEvent(input: LogBattleEventInput!): PKBattleStateSync!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@logBattleEvent")
+
+    # TikTok style PK Battle mutations
+    "Public within transaction"
+    startMultiPlayerPKBattle(input: StartMultiPlayerPKBattleInput!): StartMultiPlayerPKBattleResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleResolver@startMultiPlayerPKBattle")
+}
+# --- 📌 End::Mutations ---

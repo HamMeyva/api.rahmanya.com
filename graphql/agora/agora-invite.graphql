@@ -2,11 +2,11 @@
 type AgoraChannelInvite {
     id: ID
     agora_channel_id: ID!
-    agora_channel_data: AgoraChannel
+    agora_channel_data: AgoraChannel @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@resolveInviteChannelData")
     user_id: ID!
-    user: User
+    user: User @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@resolveInviteUser")
     invited_user_id: ID!
-    invited_user: User
+    invited_user: User @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@resolveInviteInvitedUser")
     status_id: Int!
     get_status: String!
     invited_at: DateTime
@@ -23,14 +23,31 @@ type InviteGuestToStreamResponse {
 
 type RespondToStreamInviteResponse {
     success: Boolean!
-    message: String,
-    token: String,
+    message: String
+    token: String
     agora_channel: AgoraChannel
+    shared_video_room_id: String
+    parent_channel_id: String
 }
 
 type GetMyStreamInvitesResponse {
     success: Boolean!
     data: [AgoraChannelInvite]
+}
+
+type InvitableUser {
+    id: ID!
+    type: String!
+    user_data: JSON!
+    watch_duration: Int
+    joined_at: DateTime
+}
+
+type GetInvitableUsersResponse {
+    success: Boolean!
+    message: String
+    users: [InvitableUser!]!
+    total: Int!
 }
 # --- 📌 End::Response Models ---
 
@@ -43,6 +60,7 @@ input InviteGuestToStreamInput {
 input RespondToStreamInviteInput {
     invite_id: ID!
     response: Boolean!
+    create_separate_stream: Boolean
 }
 
 input getMyStreamInvitesInput {
@@ -58,6 +76,11 @@ extend type Query {
     getMyStreamInvites(input: getMyStreamInvitesInput!): GetMyStreamInvitesResponse!
         @guard(with: ["sanctum"])
         @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@getMyStreamInvites")
+    
+    # Davet edilebilir kullanıcıları listele
+    getInvitableUsers(agora_channel_id: ID!): GetInvitableUsersResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@getInvitableUsers")
 }
 # --- 📌 End::Query ---
 
@@ -74,3 +97,20 @@ extend type Mutation {
         @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@respondToInvite")
 }
 # --- 📌 End::Mutations ---
+# --- 📌 Start::Additional Queries for Frontend Compatibility ---
+extend type Query {
+    # Frontend compatibility alias for streamInvitations
+    streamInvitations(input: getMyStreamInvitesInput!): GetMyStreamInvitesResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@streamInvitations")
+}
+# --- 📌 End::Additional Queries ---
+
+# --- 📌 Start::Additional Mutations for Frontend Compatibility ---
+extend type Mutation {
+    # Frontend compatibility alias for sendStreamInvitation  
+    sendStreamInvitation(input: InviteGuestToStreamInput!): InviteGuestToStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraInviteResolver@sendStreamInvitation")
+}
+# --- 📌 End::Additional Mutations ---

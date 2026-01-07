@@ -1,0 +1,38 @@
+# Separate Streams Support (No Mixing)
+
+extend type Query {
+    # Get all active streams (including host and cohost streams)
+    getAllActiveStreams: [AgoraChannel!]!
+        @field(resolver: "App\\GraphQL\\Resolvers\\SeparateStreamsResolver@getAllActiveStreams")
+
+    # Get streams for a specific room (host + cohosts)
+    getStreamsByRoom(room_id: String!): [AgoraChannel!]!
+        @field(resolver: "App\\GraphQL\\Resolvers\\SeparateStreamsResolver@getStreamsByRoom")
+
+    # Check if streams are related (host-cohost relationship)
+    getRelatedStreams(stream_id: String!): RelatedStreamsResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\SeparateStreamsResolver@getRelatedStreams")
+}
+
+type RelatedStreamsResponse {
+    success: Boolean!
+    host_stream: AgoraChannel
+    cohost_streams: [AgoraChannel!]
+    is_cohost: Boolean!
+}
+
+extend type Mutation {
+    # Register cohost stream as separate entity
+    registerCohostStream(
+        parent_stream_id: String!
+        cohost_stream_id: String!
+        title: String!
+    ): RegisterCohostResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\SeparateStreamsResolver@registerCohostStream")
+}
+
+type RegisterCohostResponse {
+    success: Boolean!
+    message: String
+    stream: AgoraChannel
+}

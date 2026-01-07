@@ -1,8 +1,20 @@
 # --- 📌 Start::Response Models ---
 type AgoraChannelMessage {
     id: ID
+    agora_channel_id: ID
+    user_id: String
+    user_data: JSON
+    admin_id: String
+    admin_data: JSON
     message: String
+    original_message: String
     has_banned_word: Boolean
+    is_pinned: Boolean
+    is_blocked: Boolean
+    timestamp: Int
+    parent_message_id: ID
+    gift_id: Int
+    gift_data: JSON
 }
 
 type SendMessageToStreamResponse {
