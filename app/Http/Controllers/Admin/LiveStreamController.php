@@ -191,18 +191,36 @@ class LiveStreamController extends Controller
 
     public function stop($id, AgoraChannelService $agoraChannelService): JsonResponse
     {
-        /** @var AgoraChannel $stream */
-        $stream = AgoraChannel::withTrashed()->find($id);
+        // ✅ FIX: Try both _id and id for MongoDB compatibility
+        $stream = AgoraChannel::withTrashed()->where('_id', $id)->first();
+
         if (!$stream) {
-            throw new NotFoundHttpException();
+            // Try with id field as fallback
+            $stream = AgoraChannel::withTrashed()->where('id', $id)->first();
+        }
+
+        if (!$stream) {
+            return response()->json([
+                'message' => "Yayın bulunamadı. ID: {$id}",
+            ], 404);
         }
 
         try {
             $agoraChannelService->endStream($stream);
         } catch (Exception $e) {
+            $errorMessage = $e->getMessage();
+
+            // ✅ FIX: If stream already closed, return 200 with message
+            if (str_contains($errorMessage, 'zaten kapalı') || str_contains($errorMessage, 'already closed')) {
+                return response()->json([
+                    'message' => "Yayın zaten kapalı.",
+                ], 200);
+            }
+
+            // Other errors return 500
             return response()->json([
-                'message' => $e->getMessage(),
-            ], 404);
+                'message' => "Yayın durdurulurken hata: " . $errorMessage,
+            ], 500);
         }
 
         return response()->json([
