@@ -30,7 +30,8 @@ class FeedService
         protected VideoScoringService $scoringService,
         protected VideoService $videoService,
         protected AdService $adService
-    ) {}
+    ) {
+    }
 
     public function getFeed(User $user, string $type = 'mixed', int $limit = 50): array
     {
@@ -48,7 +49,7 @@ class FeedService
         // Öncelikle cache'de kayıtlı bir feed var mı kontrol et
         if (Cache::has($cacheKey)) {
             $cached = Cache::get($cacheKey);
-            
+
             // Eğer boş veya geçersiz bir cache varsa, onu yok say ve yeniden oluştur
             if (!$cached || $cached->count() <= 0) {
                 Log::warning('Empty or invalid cache found, recreating', [
@@ -59,24 +60,24 @@ class FeedService
             } else {
                 // Geçerli bir cache var - aynı videoları takip eden isteklerde göstermemek için ID'leri al
                 $videoIds = $cached->pluck('id')->toArray();
-                
+
                 // Job daha önce başlatılmadıysa başlat - arka planda yeni feed hazırla
                 if (!Cache::has($jobInProgressKey)) {
                     // Job'un başlatıldığını belirt ve kısa süre cache'le
                     Cache::put($jobInProgressKey, true, now()->addSeconds(60));
-                    
+
                     // Background job başlat ama cache'i hemen silme
                     UpdateUserFeedJob::dispatch($user->id, $type, $limit, $videoIds)
                         ->onQueue('low')
                         ->delay(now()->addSeconds(10));
-                        
+
                     Log::info('Started background job to update feed cache', [
                         'user_id' => $user->id,
                         'feed_type' => $type,
                         'videos_count' => $cached->count()
                     ]);
                 }
-                
+
                 // Videolar geçerli ise kullan
                 if ($cached->count() > 0) {
                     Log::info('Getting feed videos from cache', [
@@ -91,21 +92,21 @@ class FeedService
 
         // Cache yok veya geçersiz/boş - DB'den getir ve yeni cache oluştur
         $videos = $this->getFeedVideosFromDb($user, ['limit' => $limit], $type);
-        
+
         // Video listesini cache'le - kısa sürede yeni talep gelirse bunu kullan
         if ($videos->count() > 0) {
             Cache::put($cacheKey, $videos, now()->addMinutes(16));
-            
+
             // Eğer video varsa ve cache oluştuysa, job'un başlatıldığını belirt
             Cache::put($jobInProgressKey, true, now()->addSeconds(60));
-            
+
             // 10 saniye sonra yeni bir feed oluşturmak için job planla
             UpdateUserFeedJob::dispatch($user->id, $type, $limit, $videos->pluck('id')->toArray())
                 ->onQueue('low')
                 ->delay(now()->addSeconds(20)); // Bir sonraki feed için biraz daha fazla zaman bırak
-                
+
             Log::info('Created new feed from database and scheduled refresh job', [
-                'user_id' => $user->id, 
+                'user_id' => $user->id,
                 'feed_type' => $type,
                 'videos_count' => $videos->count()
             ]);
@@ -133,7 +134,7 @@ class FeedService
 
         // İzlenen videoların ID'lerini al
         $watchedVideoIds = $this->getWatchedVideoIds($user->id);
-        
+
         // İgnore edilecek ID listesini limitleyelim (çok büyük liste performans sorunu yaratabilir)
         if (count($ignoreVideoIds) > 100) {
             $ignoreVideoIds = array_slice($ignoreVideoIds, 0, 100);
@@ -151,7 +152,7 @@ class FeedService
                 ->where('status', 'approved')
                 ->pluck('followed_id')
                 ->toArray();
-            
+
             // Eğer following feed ise ve kullanıcı kimseyi takip etmiyorsa, boş bir koleksiyon döndür
             if (empty($followingUserIds) && $type === 'following') {
                 Log::info('User is not following anyone, returning empty collection', [
@@ -206,7 +207,7 @@ class FeedService
         $videos = $unwatchedVideos;
         if ($unwatchedCount < $limit) {
             $remaining = $limit - $unwatchedCount;
-            
+
             // İzlenmiş videolardan rastgele seç
             $watchedQuery = Video::query()
                 ->where('is_private', false)
@@ -225,7 +226,7 @@ class FeedService
                 ->when($type === 'mixed', function ($query) {
                     $query->where('is_sport', false);
                 });
-                
+
             // İzlenmiş videolardan seçim yaparken, trending score ve random factor kullan
             $this->scoringService->applyTrendingScoreSort($watchedQuery);
             if (!empty($randomFactor) && $randomFactor > 0) {
@@ -240,10 +241,10 @@ class FeedService
                     $watchedQuery->orderBy('trending_score', 'desc')->orderBy('created_at', 'desc');
                 }
             }
-            
+
             // İzlenmiş videolardan daha fazla çek (en az 3 katı) ve shuffle yaparak randomize et
             $watchedVideos = $watchedQuery->limit($remaining * 3)->get();
-            
+
             if ($watchedVideos->count() > 0) {
                 $watchedVideos = $watchedVideos->shuffle()->take($remaining);
                 // İzlenmemiş ve izlenmiş videoları birleştir
@@ -255,10 +256,10 @@ class FeedService
         // Burada explicit olarak izlenmiş videoları dışarıda bırakmayarak, izlenmiş videolardan sonra yeni videolar da getirilmesini sağlıyoruz
         if ($videos->count() < $limit) {
             $stillNeeded = $limit - $videos->count();
-            
+
             // Şu ana kadar eklenen video ID'lerini al - bunları tekrar sorgulamayalım
             $alreadyIncludedIds = $videos->pluck('id')->toArray();
-            
+
             // Önce standart sorgulama - izlenmiş izlenmemiş farketmeksizin video ara
             $allVideosQuery = Video::query()
                 ->where('is_private', false)
@@ -276,22 +277,22 @@ class FeedService
                 ->when($type === 'mixed', function ($query) {
                     $query->where('is_sport', false);
                 });
-                
+
             // Çok fazla video izlenmiş olmadığı durumlarda ilk olarak ignoreVideoIds'i dikkate al
             // ama hiç video bulunamazsa bu filtreyi kaldır
             if (count($ignoreVideoIds) > 0) {
                 $allVideosQuery->whereNotIn('id', $ignoreVideoIds);
             }
-                
+
             $this->scoringService->applyTrendingScoreSort($allVideosQuery);
-            
+
             // Daha fazla video çekelim ve karıştıralım
             $additionalVideos = $allVideosQuery->limit($stillNeeded * 3)->get();
-            
+
             if ($additionalVideos->count() > 0) {
                 $additionalVideos = $additionalVideos->shuffle()->take($stillNeeded);
                 $videos = $videos->concat($additionalVideos);
-                
+
                 Log::info('Added additional videos to meet the limit', [
                     'user_id' => $user->id,
                     'additional_count' => $additionalVideos->count(),
@@ -303,7 +304,7 @@ class FeedService
                     'user_id' => $user->id,
                     'ignore_ids_count' => count($ignoreVideoIds)
                 ]);
-                
+
                 // ignoreVideoIds filtresini kaldırarak tekrar dene
                 $allVideosQuery = Video::query()
                     ->where('is_private', false)
@@ -321,14 +322,14 @@ class FeedService
                     ->when($type === 'mixed', function ($query) {
                         $query->where('is_sport', false);
                     });
-                    
+
                 $this->scoringService->applyTrendingScoreSort($allVideosQuery);
                 $additionalVideos = $allVideosQuery->limit($stillNeeded * 3)->get();
-                
+
                 if ($additionalVideos->count() > 0) {
                     $additionalVideos = $additionalVideos->shuffle()->take($stillNeeded);
                     $videos = $videos->concat($additionalVideos);
-                    
+
                     Log::info('Added videos after removing ignoreVideoIds filter', [
                         'user_id' => $user->id,
                         'additional_count' => $additionalVideos->count(),
@@ -350,14 +351,14 @@ class FeedService
                         ->when($type === 'mixed', function ($query) {
                             $query->where('is_sport', false);
                         });
-                    
+
                     $this->scoringService->applyTrendingScoreSort($finalAttemptQuery);
                     $finalVideos = $finalAttemptQuery->limit($stillNeeded * 4)->get(); // Daha fazla video al
-                    
+
                     if ($finalVideos->count() > 0) {
                         $finalVideos = $finalVideos->shuffle()->take($stillNeeded);
                         $videos = $videos->concat($finalVideos);
-                        
+
                         Log::info('Added final attempt videos with minimal filtering', [
                             'user_id' => $user->id,
                             'final_count' => $finalVideos->count(),
@@ -369,7 +370,7 @@ class FeedService
                             'user_id' => $user->id,
                             'feed_type' => $type
                         ]);
-                        
+
                         // Tüm izlenmiş videoları tekrar kullanılabilir yap
                         $finalVideosQuery = Video::query()
                             ->where('is_private', false)
@@ -384,14 +385,14 @@ class FeedService
                             ->when($type === 'mixed', function ($query) {
                                 $query->where('is_sport', false);
                             });
-                        
+
                         $this->scoringService->applyTrendingScoreSort($finalVideosQuery);
                         $recycledVideos = $finalVideosQuery->limit(100)->get(); // Çok daha fazla video al
-                        
+
                         if ($recycledVideos->count() > 0) {
                             $recycledVideos = $recycledVideos->shuffle()->take($stillNeeded);
                             $videos = $videos->concat($recycledVideos);
-                            
+
                             Log::info('Added recycled videos as last resort', [
                                 'user_id' => $user->id,
                                 'recycled_count' => $recycledVideos->count(),
@@ -403,18 +404,32 @@ class FeedService
             }
         }
 
-        // Videoları karıştır (ilk chunk'ı shuffle et)
-        if ($videos->count() > 2) {
-            $limitOfShuffle = intval(floor($videos->count() / 3));
+        // Seller videolarını (yüksek trending_score) ayrı tut ve en üste taşı
+        $sellerVideos = $videos->filter(fn($v) => ($v->trending_score ?? 0) >= 1000000);
+        $regularVideos = $videos->filter(fn($v) => ($v->trending_score ?? 0) < 1000000);
+
+        // Sadece normal videoları karıştır (seller videolarına dokunma)
+        if ($regularVideos->count() > 2) {
+            $limitOfShuffle = intval(floor($regularVideos->count() / 3));
             if ($limitOfShuffle > 0) {
-                $firstChunk = $videos->take($limitOfShuffle)->shuffle();
-                $rest = $videos->slice($limitOfShuffle);
-                $videos = $firstChunk->concat($rest);
+                $firstChunk = $regularVideos->take($limitOfShuffle)->shuffle();
+                $rest = $regularVideos->slice($limitOfShuffle);
+                $regularVideos = $firstChunk->concat($rest);
             } else {
                 // Çok az video varsa tümünü karıştır
-                $videos = $videos->shuffle();
+                $regularVideos = $regularVideos->shuffle();
             }
         }
+
+        // Seller videolarını en başa ekle, sonra normal videolar
+        $videos = $sellerVideos->concat($regularVideos);
+
+        Log::info('Feed videos priority applied', [
+            'user_id' => $user->id,
+            'feed_type' => $type,
+            'seller_videos_count' => $sellerVideos->count(),
+            'regular_videos_count' => $regularVideos->count()
+        ]);
 
         // Limit kadar video döndür
         $videos = $videos->take($limit);
