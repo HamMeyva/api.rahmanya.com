@@ -333,6 +333,13 @@ class VideoController extends Controller
         // Handle Seller Identity
         $sellerId = $request->input('seller_id');
         $sellerName = $request->input('seller_name') ?? 'Seller';
+        $sellerAvatar = $request->input('seller_avatar');
+
+        \Log::info('processMetadataWithKey: Seller identity check', [
+            'seller_id' => $sellerId,
+            'seller_name' => $sellerName,
+            'seller_avatar' => $sellerAvatar,
+        ]);
 
         if ($sellerId) {
             $nickname = 'seller_' . $sellerId;
@@ -346,17 +353,35 @@ class VideoController extends Controller
                     'email' => $nickname . '@seller.rahmanya.com',
                     'password' => bcrypt(\Illuminate\Support\Str::random(16)),
                     'is_approved' => true,
-                    // 'account_type' => 'seller', 
+                    'avatar' => $sellerAvatar,
+                ]);
+                \Log::info('processMetadataWithKey: Created new Shadow Seller User', [
+                    'user_id' => $user->id,
+                    'nickname' => $nickname,
+                    'name' => $sellerName,
                 ]);
             } else {
-                // Update name if changed
+                // Update name/avatar if changed
+                $needsSave = false;
                 if ($user->name !== $sellerName) {
                     $user->name = $sellerName;
+                    $needsSave = true;
+                }
+                if ($sellerAvatar && $user->avatar !== $sellerAvatar) {
+                    $user->avatar = $sellerAvatar;
+                    $needsSave = true;
+                }
+                if ($needsSave) {
                     $user->save();
                 }
+                \Log::info('processMetadataWithKey: Found existing Shadow Seller User', [
+                    'user_id' => $user->id,
+                    'nickname' => $nickname,
+                ]);
             }
         } else {
             // Fallback
+            \Log::warning('processMetadataWithKey: No seller_id provided, using fallback user');
             $user = User::first();
         }
 
