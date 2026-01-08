@@ -20,26 +20,33 @@ class VideoReportResolver
 
         try {
             $video = Video::find($input['video_id']);
-            if (!$video) throw new Exception('Video bulunamadı.');
-            
-            if($video->user_id == $authUser->id) throw new Exception('Kendi videolarınızı rapor edemezsiniz.');
-            
+            if (!$video)
+                throw new Exception('Video bulunamadı.');
+
+            if ($video->user_id == $authUser->id)
+                throw new Exception('Kendi videolarınızı rapor edemezsiniz.');
+
             $existingReport = ReportProblem::query()
                 ->where('entity_type', 'Video')
                 ->where('entity_id', $video->id)
                 ->where('user_id', $authUser->id)
                 ->first();
-            if($existingReport) throw new Exception('Bu video zaten rapor edildi.');
+            if ($existingReport)
+                throw new Exception('Bu video zaten rapor edildi.');
 
-            $problemCategory = ReportProblemCategory::find($input['report_problem_category_id']);
-            if (!$problemCategory) throw new Exception('Geçersiz problem kategorisi.');
-            
+            $categoryId = $input['report_problem_category_id'] ?? null;
+            if ($categoryId) {
+                $problemCategory = ReportProblemCategory::find($categoryId);
+                if (!$problemCategory)
+                    throw new Exception('Geçersiz problem kategorisi.');
+            }
+
             $report = ReportProblem::create([
                 'entity_type' => 'Video',
                 'entity_id' => $video->id,
                 'user_id' => $authUser->id,
                 'status_id' => ReportProblem::STATUS_PENDING,
-                'report_problem_category_id' => $input['report_problem_category_id'],
+                'report_problem_category_id' => $categoryId,
                 'message' => $input['message'],
             ]);
 
@@ -64,9 +71,9 @@ class VideoReportResolver
 
         try {
             $reports = ReportProblem::query()
-            ->where('user_id', $authUser->id)
-            ->where('entity_type', 'Video')
-            ->get();
+                ->where('user_id', $authUser->id)
+                ->where('entity_type', 'Video')
+                ->get();
 
             return [
                 'success' => true,
