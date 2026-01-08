@@ -1239,9 +1239,44 @@ class VideoResolver
      */
     public function resolveUser($video, $args, $context, $info)
     {
-        $userId = is_array($video) ? $video['user_id'] : $video->user_id;
+        // Handle array or object
+        if (is_array($video)) {
+            $userId = $video['user_id'] ?? null;
+            // Check for embedded user_data in array
+            if (isset($video['user_data']) && !empty($video['user_data'])) {
+                $userData = is_object($video['user_data']) ? $video['user_data'] : (object) $video['user_data'];
+                $user = new User();
+                foreach ($userData as $key => $value) {
+                    $user->$key = $value;
+                }
+                return $user;
+            }
+        } else {
+            $userId = $video->user_id ?? null;
+            // Check for embedded user first (better performance)
+            $embeddedUser = $video->getEmbeddedUser();
+            if ($embeddedUser) {
+                return $embeddedUser;
+            }
+        }
 
-        return User::find($userId);
+        if (!$userId) {
+            Log::warning('resolveUser: Video has no user_id', [
+                'video_id' => is_array($video) ? ($video['id'] ?? 'unknown') : ($video->id ?? 'unknown')
+            ]);
+            return null;
+        }
+
+        $user = User::find($userId);
+
+        if (!$user) {
+            Log::warning('resolveUser: User not found for video', [
+                'user_id' => $userId,
+                'video_id' => is_array($video) ? ($video['id'] ?? 'unknown') : ($video->id ?? 'unknown')
+            ]);
+        }
+
+        return $user;
     }
 
     /**
