@@ -200,7 +200,7 @@ class FeedService
         }
 
         // İzlenmemiş videoları al - daha fazla video çekelim ki shuffle sonrası yeterli sayıda olsun
-        $unwatchedVideos = $unwatchedQuery->limit($limit * 2)->get();
+        $unwatchedVideos = $unwatchedQuery->with('user')->limit($limit * 2)->get();
         $unwatchedCount = $unwatchedVideos->count();
 
         // Eğer izlenmemiş videolar limiti doldurmuyorsa, izlenmiş videolardan ekle
@@ -243,7 +243,7 @@ class FeedService
             }
 
             // İzlenmiş videolardan daha fazla çek (en az 3 katı) ve shuffle yaparak randomize et
-            $watchedVideos = $watchedQuery->limit($remaining * 3)->get();
+            $watchedVideos = $watchedQuery->with('user')->limit($remaining * 3)->get();
 
             if ($watchedVideos->count() > 0) {
                 $watchedVideos = $watchedVideos->shuffle()->take($remaining);
@@ -287,7 +287,7 @@ class FeedService
             $this->scoringService->applyTrendingScoreSort($allVideosQuery);
 
             // Daha fazla video çekelim ve karıştıralım
-            $additionalVideos = $allVideosQuery->limit($stillNeeded * 3)->get();
+            $additionalVideos = $allVideosQuery->with('user')->limit($stillNeeded * 3)->get();
 
             if ($additionalVideos->count() > 0) {
                 $additionalVideos = $additionalVideos->shuffle()->take($stillNeeded);
@@ -324,7 +324,7 @@ class FeedService
                     });
 
                 $this->scoringService->applyTrendingScoreSort($allVideosQuery);
-                $additionalVideos = $allVideosQuery->limit($stillNeeded * 3)->get();
+                $additionalVideos = $allVideosQuery->with('user')->limit($stillNeeded * 3)->get();
 
                 if ($additionalVideos->count() > 0) {
                     $additionalVideos = $additionalVideos->shuffle()->take($stillNeeded);
@@ -353,7 +353,7 @@ class FeedService
                         });
 
                     $this->scoringService->applyTrendingScoreSort($finalAttemptQuery);
-                    $finalVideos = $finalAttemptQuery->limit($stillNeeded * 4)->get(); // Daha fazla video al
+                    $finalVideos = $finalAttemptQuery->with('user')->limit($stillNeeded * 4)->get(); // Daha fazla video al
 
                     if ($finalVideos->count() > 0) {
                         $finalVideos = $finalVideos->shuffle()->take($stillNeeded);
@@ -387,7 +387,7 @@ class FeedService
                             });
 
                         $this->scoringService->applyTrendingScoreSort($finalVideosQuery);
-                        $recycledVideos = $finalVideosQuery->limit(100)->get(); // Çok daha fazla video al
+                        $recycledVideos = $finalVideosQuery->with('user')->limit(100)->get(); // Çok daha fazla video al
 
                         if ($recycledVideos->count() > 0) {
                             $recycledVideos = $recycledVideos->shuffle()->take($stillNeeded);
