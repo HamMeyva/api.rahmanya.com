@@ -97,6 +97,7 @@ Route::group(['middleware' => 'auth:admin'], routes: function () {
         Route::get('/show/{id}', 'show')->name('show');
         Route::post('/destroy/{id?}', 'destroy')->name('destroy');
         Route::post('/bulk-destroy', 'bulkDestroy')->name('bulk-destroy');
+        Route::post('/fix-seller-videos', 'fixSellerVideos')->name('fix-seller-videos');
         Route::post('{id}/update', 'update')->name('update');
 
         Route::get('/{id}/get-like-comment-chart-data', 'getLikeCommentChartData')->name('get-like-comment-chart-data');

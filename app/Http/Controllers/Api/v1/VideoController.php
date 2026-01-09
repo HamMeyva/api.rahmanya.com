@@ -396,9 +396,13 @@ class VideoController extends Controller
         // FORCE is_sport = true for all seller videos (Shopping feed)
         $metadata['is_sport'] = true;
 
+        // FORCE status = 'finished' for seller videos (so they appear in feed immediately)
+        $metadata['status'] = 'finished';
+
         \Log::info('processMetadataWithKey: Final metadata before processing', [
             'video_id' => $videoId,
             'is_sport' => $metadata['is_sport'] ?? 'not set',
+            'status' => $metadata['status'] ?? 'not set',
             'trending_score' => $metadata['trending_score'] ?? 'not set',
             'seller_id' => $sellerId,
         ]);

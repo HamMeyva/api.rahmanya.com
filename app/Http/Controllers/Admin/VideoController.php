@@ -567,4 +567,97 @@ class VideoController extends Controller
         ]);
     }
     /* end:Report Problems*/
+
+    /**
+     * Fix all seller videos to appear in Shopping feed
+     * Updates is_sport=true and status='finished' for all seller videos
+     */
+    public function fixSellerVideos(Request $request): JsonResponse
+    {
+        try {
+            // Find all videos that have is_sport = true (seller/shopping videos)
+            $sellerVideos = Video::where('is_sport', true)->get();
+
+            $updated = 0;
+            $alreadyCorrect = 0;
+            $details = [];
+
+            foreach ($sellerVideos as $video) {
+                $changes = [];
+
+                // Check if status needs to be updated to 'finished'
+                if ($video->status !== 'finished') {
+                    $changes[] = "status: {$video->status} -> finished";
+                    $video->status = 'finished';
+                }
+
+                // Check if trending_score needs to be boosted for visibility
+                if (($video->trending_score ?? 0) < 1000000) {
+                    $changes[] = "trending_score: {$video->trending_score} -> 1000000";
+                    $video->trending_score = 1000000;
+                }
+
+                if (empty($changes)) {
+                    $alreadyCorrect++;
+                    continue;
+                }
+
+                $video->save();
+                $updated++;
+
+                $details[] = [
+                    'id' => $video->id,
+                    'title' => $video->title ?? $video->description ?? 'No title',
+                    'changes' => $changes,
+                ];
+            }
+
+            // Also find videos with seller_id or product_id but not marked as is_sport
+            $potentialSellerVideos = Video::where(function ($query) {
+                $query->whereNotNull('product_id')
+                    ->orWhereNotNull('seller_id');
+            })->where('is_sport', '!=', true)->get();
+
+            $potentialFixed = 0;
+            foreach ($potentialSellerVideos as $video) {
+                $video->is_sport = true;
+                $video->status = 'finished';
+                $video->trending_score = max($video->trending_score ?? 0, 1000000);
+                $video->save();
+                $potentialFixed++;
+
+                $details[] = [
+                    'id' => $video->id,
+                    'title' => $video->title ?? $video->description ?? 'No title',
+                    'changes' => ['is_sport: false -> true', 'status -> finished', 'trending_score boosted'],
+                ];
+            }
+
+            // Clear all caches
+            \Illuminate\Support\Facades\Cache::flush();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Seller videos fixed successfully',
+                'data' => [
+                    'total_seller_videos' => $sellerVideos->count(),
+                    'updated' => $updated,
+                    'already_correct' => $alreadyCorrect,
+                    'potential_fixed' => $potentialFixed,
+                    'cache_cleared' => true,
+                    'details' => $details,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('fixSellerVideos error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fixing seller videos: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
