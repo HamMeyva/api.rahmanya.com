@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\LiveStream;
 use App\Http\Controllers\Controller;
 use App\Models\Agora\AgoraChannel;
 use App\Models\User;
+use App\Services\FirebaseNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,12 @@ use Illuminate\Support\Str;
  */
 class SimpleLiveStreamInviteController extends Controller
 {
+    private FirebaseNotificationService $notificationService;
+
+    public function __construct(FirebaseNotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
     /**
      * Send a simple invite without any stream manipulation
      */
@@ -84,8 +91,29 @@ class SimpleLiveStreamInviteController extends Controller
                 'invited_user_id' => $request->invited_user_id
             ]);
 
-            // TODO: Send push notification to invited user
-            // This should be done through your notification service
+            // Send push notification to invited user
+            if ($invitedUser->fcm_token) {
+                $hostName = Auth::user()->username ?? Auth::user()->nickname ?? 'Bir kullanıcı';
+
+                Log::info('Sending simple invite notification', [
+                    'to_user' => $invitedUser->id,
+                    'token' => substr($invitedUser->fcm_token, 0, 10) . '...'
+                ]);
+
+                $this->notificationService->sendToDevice(
+                    $invitedUser->fcm_token,
+                    'Canlı Yayın Daveti',
+                    "{$hostName} seni canlı yayınına davet etti! 🎥",
+                    [
+                        'type' => 'live_stream_invite',
+                        'invite_id' => $inviteId,
+                        'stream_id' => $request->channel_name, // Using channel_name as stream_id for consistency
+                        'host_name' => $hostName,
+                        'host_avatar' => Auth::user()->avatar ?? '',
+                        'click_action' => 'FLUTTER_NOTIFICATION_CLICK'
+                    ]
+                );
+            }
 
             return response()->json([
                 'success' => true,
@@ -122,9 +150,9 @@ class SimpleLiveStreamInviteController extends Controller
         try {
             $invites = DB::table('live_stream_invites as i')
                 ->join('users as host', 'i.host_user_id', '=', 'host.id')
-                ->leftJoin('agora_channels as ac', function($join) {
+                ->leftJoin('agora_channels as ac', function ($join) {
                     $join->on('i.stream_id', '=', 'ac.channel_name')
-                         ->where('ac.status_id', '=', AgoraChannel::STATUS_LIVE);
+                        ->where('ac.status_id', '=', AgoraChannel::STATUS_LIVE);
                 })
                 ->where('i.invited_user_id', Auth::id())
                 ->where('i.status', 'pending')
@@ -145,7 +173,7 @@ class SimpleLiveStreamInviteController extends Controller
                 ->get();
 
             // Format the response
-            $formattedInvites = $invites->map(function($invite) {
+            $formattedInvites = $invites->map(function ($invite) {
                 return [
                     'invite_id' => $invite->invite_id,
                     'channel_name' => $invite->channel_name,

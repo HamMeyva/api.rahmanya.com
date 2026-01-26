@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use App\Services\BunnyCdnService;
 use App\Models\Agora\AgoraChannel;
 use App\Models\LiveStreamCategory;
+use App\Models\Challenge\Challenge;
 use App\Services\AgoraTokenService;
 use Illuminate\Support\Facades\Log;
 use App\Models\Demographic\Language;
@@ -21,7 +22,10 @@ use App\Events\LiveStream\StreamLiked;
 use App\Events\LiveStream\ViewerJoined;
 use App\Events\LiveStream\StreamStarted;
 use App\Events\LiveStream\StreamUpdated;
+use App\Events\LiveStream\CohostLeft;
 use App\Models\Agora\AgoraChannelViewer;
+use Illuminate\Support\Facades\DB;
+use App\Services\LiveStream\HostLeaveTransitionService;
 
 class AgoraChannelService
 {
@@ -29,14 +33,20 @@ class AgoraChannelService
     protected $appCertificate;
     protected $expirationTimeInSeconds;
     protected $agoraTokenService;
+    protected $hostLeaveTransitionService;
 
 
-    public function __construct(AgoraTokenService $agoraTokenService, protected BunnyCdnService $bunnyCdnService)
+    public function __construct(
+        AgoraTokenService $agoraTokenService,
+        protected BunnyCdnService $bunnyCdnService,
+        ?HostLeaveTransitionService $hostLeaveTransitionService = null
+    )
     {
         $this->appId = config('services.agora.app_id');
         $this->appCertificate = config('services.agora.app_certificate');
         $this->expirationTimeInSeconds = 3600; // 1 saat
         $this->agoraTokenService = $agoraTokenService;
+        $this->hostLeaveTransitionService = $hostLeaveTransitionService ?? app(HostLeaveTransitionService::class);
     }
 
     public function startStream(User $user, array $data): ?AgoraChannel
@@ -47,16 +57,23 @@ class AgoraChannelService
                 throw new Exception('Cezalı olduğunuz için yayın yapamazsınız.');
             }
 
-            // aktif yayını var mı kontrol et
-            $activeStream = AgoraChannel::where('user_id', $user->id)
-                ->where('is_online', true)
-                ->first();
-            if ($activeStream) {
-                throw new Exception('Zaten aktif bir yayınınız var.');
+            // For cohost streams, skip the active stream check
+            $isCohost = isset($data['is_cohost']) && $data['is_cohost'];
+
+            if (!$isCohost) {
+                // aktif yayını var mı kontrol et (only for regular streams)
+                $activeStream = AgoraChannel::where('user_id', $user->id)
+                    ->where('is_online', true)
+                    ->first();
+                if ($activeStream) {
+                    throw new Exception('Zaten aktif bir yayınınız var.');
+                }
             }
+
             // Yayın bilgileri hazırlama
+            // Use provided channel ID for cohost, otherwise generate
+            $channelName = isset($data['agora_channel_id']) ? $data['agora_channel_id'] : $this->generateChannelName($user);
             $streamKey = $this->generateStreamKey($user);
-            $channelName = $this->generateChannelName($user);
 
             // Kategori kontrolü
             $categoryId = $data['category_id'] ?? null;
@@ -66,6 +83,8 @@ class AgoraChannelService
                     throw new Exception('Kategori bulunamadı.');
                 }
             }
+
+            $settings = $data['settings'] ?? $this->getDefaultSettings();
 
             // AgoraChannel oluşturma
             $stream = new AgoraChannel();
@@ -82,12 +101,95 @@ class AgoraChannelService
             $stream->category_id = $categoryId;
             $stream->thumbnail_url = $data['thumbnail_url'] ?? null;
             $stream->tags = $data['tags'] ?? [];
-            $stream->settings = $data['settings'] ?? $this->getDefaultSettings();
+            $stream->settings = $settings;
             $stream->started_at = now();
+            
+            // Ana stream için shared video room ID set et
+            $stream->shared_video_room_id = $channelName;
+
+            // Set cohost-related fields
+            $stream->is_cohost = $isCohost;
+            $stream->is_cohost_stream = $isCohost;
+
+            Log::info('🎮 COHOST-CREATE: Setting cohost fields', [
+                'isCohost' => $isCohost,
+                'data_keys' => array_keys($data),
+                'has_host_stream_id' => isset($data['host_stream_id']),
+                'has_parent_stream_id' => isset($data['parent_stream_id']),
+                'host_stream_id_value' => $data['host_stream_id'] ?? null,
+                'parent_stream_id_value' => $data['parent_stream_id'] ?? null,
+            ]);
+
+            if ($isCohost && isset($data['host_stream_id'])) {
+                $stream->host_stream_id = $data['host_stream_id'];
+                $stream->parent_stream_id = $data['host_stream_id'];
+                $stream->parent_channel_id = $data['host_stream_id'];
+                Log::info('🎮 COHOST-CREATE: Set fields via host_stream_id', [
+                    'host_stream_id' => $data['host_stream_id']
+                ]);
+            }
+            if ($isCohost && isset($data['parent_stream_id'])) {
+                $stream->parent_stream_id = $data['parent_stream_id'];
+                $stream->parent_channel_id = $data['parent_stream_id'];
+                Log::info('🎮 COHOST-CREATE: Set fields via parent_stream_id', [
+                    'parent_stream_id' => $data['parent_stream_id']
+                ]);
+            }
+
+            Log::info('🎮 COHOST-CREATE: Before save', [
+                'is_cohost' => $stream->is_cohost,
+                'is_cohost_stream' => $stream->is_cohost_stream,
+                'parent_stream_id' => $stream->parent_stream_id,
+                'parent_channel_id' => $stream->parent_channel_id,
+                'host_stream_id' => $stream->host_stream_id,
+            ]);
+
             $stream->save();
 
-            $stream->token = $this->generateToken($channelName, $user->id, AgoraTokenService::RolePublisher);
+            Log::info('🎮 COHOST-CREATE: After save - verifying', [
+                'stream_id' => $stream->id,
+                'is_cohost' => $stream->is_cohost,
+                'is_cohost_stream' => $stream->is_cohost_stream,
+                'parent_stream_id' => $stream->parent_stream_id,
+                'parent_channel_id' => $stream->parent_channel_id,
+                'host_stream_id' => $stream->host_stream_id,
+            ]);
 
+            $stream->token = $this->generateToken($channelName, $user->agora_uid, AgoraTokenService::RolePublisher);
+
+            // Register cohost relationship if this is a cohost stream
+            if ($isCohost && isset($data['parent_stream_id'])) {
+                DB::table('related_streams')->insert([
+                    'host_stream_id' => $data['parent_stream_id'],
+                    'cohost_stream_id' => $channelName,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+
+                // ✅ CRITICAL FIX: Add cohost ID to parent stream's cohost_channel_ids array
+                // This enables parent stream messages to broadcast to all cohost channels
+                $parentStream = AgoraChannel::find($data['parent_stream_id']);
+                if ($parentStream) {
+                    $cohostIds = $parentStream->cohost_channel_ids ?? [];
+                    if (!in_array($stream->id, $cohostIds)) {
+                        $cohostIds[] = $stream->id;
+                        $parentStream->cohost_channel_ids = $cohostIds;
+                        $parentStream->save();
+
+                        Log::info('✅ Added cohost to parent stream cohost_channel_ids', [
+                            'parent_stream_id' => $parentStream->id,
+                            'cohost_stream_id' => $stream->id,
+                            'total_cohosts' => count($cohostIds)
+                        ]);
+                    }
+                }
+
+                Log::info('Cohost stream registered', [
+                    'host_stream_id' => $data['parent_stream_id'],
+                    'cohost_stream_id' => $channelName,
+                    'user_id' => $user->id
+                ]);
+            }
 
             //konuklara yayınıcıyı ekliyoruz
             AgoraChannelViewer::create([
@@ -96,6 +198,13 @@ class AgoraChannelService
                 'role_id' => (int) AgoraChannelViewer::ROLE_HOST,
                 'status_id' => (int) AgoraChannelViewer::STATUS_ACTIVE,
                 'joined_at' => now(),
+            ]);
+
+            // Set initial heartbeat for host stream to prevent immediate timeout
+            Cache::put("stream_heartbeat_{$stream->id}", now(), 120);
+            Log::info('Initial heartbeat set for host stream', [
+                'stream_id' => $stream->id,
+                'user_id' => $user->id,
             ]);
 
             // Yayın başlatma olayı tetikleme
@@ -116,15 +225,46 @@ class AgoraChannelService
     public function streamHeartbeat(AgoraChannel $stream, User $user)
     {
         try {
-            if (!$stream->is_online) {
+            // Check if stream is active - either LIVE status or is_online flag
+            if ($stream->status_id !== AgoraChannel::STATUS_LIVE && !$stream->is_online) {
                 throw new Exception('Yayın zaten kapalı.');
             }
 
-            if ($stream->user_id !== $user->id) {
-                throw new Exception('You are not authorized to manage this stream');
+            // Ana yayıncı veya cohost olup olmadığını kontrol et
+            $isStreamOwner = $stream->user_id === $user->id;
+            $cohostViewer = AgoraChannelViewer::where('agora_channel_id', $stream->id)
+                ->where('user_id', $user->id)
+                ->where('role_id', AgoraChannelViewer::ROLE_HOST)
+                ->where('status_id', AgoraChannelViewer::STATUS_ACTIVE)
+                ->first();
+            $isCohost = $cohostViewer !== null;
+
+            if (!$isStreamOwner && !$isCohost) {
+                throw new Exception('Bu yayın için heartbeat gönderme yetkiniz yok.');
             }
 
-            Cache::put("stream_heartbeat_{$stream->id}", now(), 60);
+            // Ana yayıncı için heartbeat
+            if ($isStreamOwner) {
+                Cache::put("stream_heartbeat_{$stream->id}", now(), 90); // 90 saniye olarak artırdık
+            }
+
+            // Cohost için ayrı heartbeat
+            if ($isCohost) {
+                Cache::put("stream_heartbeat_{$stream->id}_cohost_{$user->id}", now(), 90);
+                
+                // Cohost'ların heartbeat listesini güncelle
+                $cohostHeartbeats = Cache::get("stream_cohosts_{$stream->id}", []);
+                $cohostHeartbeats[$user->id] = now();
+                Cache::put("stream_cohosts_{$stream->id}", $cohostHeartbeats, 120);
+                
+                // Cohost viewer'ın last_activity_at'ini güncelle
+                $cohostViewer->last_activity_at = now();
+                $cohostViewer->save();
+                
+                // Redis'te de cohost'u aktif olarak işaretle
+                Redis::sadd("agora_channel:{$stream->id}:active_cohosts", $user->id);
+                Redis::expire("agora_channel:{$stream->id}:active_cohosts", 120); // 2 dakika TTL
+            }
 
             return true;
         } catch (Exception $e) {
@@ -134,8 +274,9 @@ class AgoraChannelService
 
     public function endStream(AgoraChannel $stream)
     {
-        /*try {
-            if (!$stream->is_online) {
+        try {
+            // Check if stream is in LIVE status
+            if ($stream->status_id !== AgoraChannel::STATUS_LIVE) {
                 throw new Exception('Yayın zaten kapalı.');
             }
 
@@ -147,29 +288,215 @@ class AgoraChannelService
             $stream->duration = (int) $stream->started_at->diffInSeconds($now);
             $stream->save();
 
+            // ✅ FIX: Her yayın bağımsız, cohost yayınlarını KAPATMA
+            // Sadece parent'tan cohost ID'sini kaldır
+            if (!$stream->is_cohost_stream) {
+                // Ana yayın kapanıyorsa, cohostlara bildir ve bağımsız yayına geçir
+                // 🔥 CRITICAL FIX: Use HostLeaveTransitionService to notify ALL cohosts
+                $cohostCount = count($stream->cohost_channel_ids ?? []);
+
+                Log::info('Host stream ending, checking for cohosts to transition', [
+                    'stream_id' => $stream->id,
+                    'cohost_count' => $cohostCount
+                ]);
+
+                if ($cohostCount > 0) {
+                    try {
+                        // Refresh stream to ensure we have latest data
+                        $stream->refresh();
+
+                        // Use HostLeaveTransitionService to notify all cohosts
+                        // This will also dispatch StreamEnded WITH cohost IDs
+                        $transitionResult = $this->hostLeaveTransitionService->handleHostLeave($stream);
+
+                        Log::info('Host leave transition result', [
+                            'stream_id' => $stream->id,
+                            'result' => $transitionResult
+                        ]);
+
+                        // 🔥 CRITICAL FIX: Clean up and return early
+                        // HostLeaveTransitionService already dispatched StreamEnded with cohost IDs
+                        // Don't dispatch again at line 379 (which doesn't include cohost IDs)
+                        Cache::forget("stream_cohosts_{$stream->id}");
+                        Cache::forget("stream_heartbeat_{$stream->id}");
+                        $cohosts = Redis::smembers("agora_channel:{$stream->id}:cohosts");
+                        foreach ($cohosts as $cohostId) {
+                            Cache::forget("stream_heartbeat_{$stream->id}_cohost_{$cohostId}");
+                        }
+                        Redis::del("agora_channel:{$stream->id}:cohosts");
+                        Redis::del("agora_channel:{$stream->id}:active_cohosts");
+
+                        Log::info('🔥 Host stream ended with cohosts - StreamEnded already dispatched by HostLeaveTransitionService', [
+                            'stream_id' => $stream->id,
+                        ]);
+                        return; // Early return - don't dispatch StreamEnded again
+
+                    } catch (\Exception $e) {
+                        Log::error('Failed to handle host leave transition', [
+                            'stream_id' => $stream->id,
+                            'error' => $e->getMessage()
+                        ]);
+                        // Fall through to dispatch StreamEnded without cohost IDs as fallback
+                    }
+                } else {
+                    // 🔥 CRITICAL FIX: Even if no active cohosts, check related_streams for formerly-related cohosts
+                    // Viewers watching these cohosts should still receive the StreamEnded event
+                    Log::info('Host stream ended, no active cohosts to transition - checking related_streams', [
+                        'stream_id' => $stream->id,
+                    ]);
+
+                    // Find formerly-related cohost streams from related_streams table
+                    $relatedCohostStreamIds = DB::table('related_streams')
+                        ->where('host_stream_id', $stream->id)
+                        ->pluck('cohost_stream_id')
+                        ->filter()
+                        ->toArray();
+
+                    if (!empty($relatedCohostStreamIds)) {
+                        Log::info('🔥 Found formerly-related cohost streams - will broadcast to them', [
+                            'stream_id' => $stream->id,
+                            'related_cohost_ids' => $relatedCohostStreamIds,
+                        ]);
+
+                        // Clean up and dispatch StreamEnded WITH related cohost IDs
+                        Cache::forget("stream_cohosts_{$stream->id}");
+                        Cache::forget("stream_heartbeat_{$stream->id}");
+                        $cohosts = Redis::smembers("agora_channel:{$stream->id}:cohosts");
+                        foreach ($cohosts as $cohostId) {
+                            Cache::forget("stream_heartbeat_{$stream->id}_cohost_{$cohostId}");
+                        }
+                        Redis::del("agora_channel:{$stream->id}:cohosts");
+                        Redis::del("agora_channel:{$stream->id}:active_cohosts");
+
+                        // Dispatch StreamEnded WITH related cohost IDs
+                        Event::dispatch(new StreamEnded($stream, $relatedCohostStreamIds));
+                        return; // Early return
+                    }
+                }
+            } else {
+                // Co-host yayını kapanıyorsa, ana yayından co-host ID'sini kaldır
+                $parentChannel = $stream->parentChannel();
+                if ($parentChannel) {
+                    $cohostChannelIds = $parentChannel->cohost_channel_ids ?? [];
+                    $cohostChannelIds = array_filter($cohostChannelIds, function($id) use ($stream) {
+                        return $id !== $stream->id;
+                    });
+                    $remainingCohostCount = count($cohostChannelIds);
+                    $parentChannel->cohost_channel_ids = array_values($cohostChannelIds);
+                    $parentChannel->save();
+
+                    Log::info('Cohost stream ended, removed from parent', [
+                        'cohost_stream_id' => $stream->id,
+                        'parent_stream_id' => $parentChannel->id,
+                        'remaining_cohost_count' => $remainingCohostCount
+                    ]);
+
+                    // 🔥 CRITICAL: Dispatch CohostLeft event to notify viewers
+                    // Use parent channel's MongoDB ID for WebSocket channel (this is what viewer subscribes to)
+                    $cohostUser = User::find($stream->user_id);
+                    $cohostNickname = $cohostUser ? $cohostUser->nickname : 'Unknown';
+
+                    Log::info('🔥🔥🔥 Dispatching CohostLeft event from endStream 🔥🔥🔥', [
+                        'broadcast_channel_id' => $parentChannel->id,
+                        'cohost_user_id' => $stream->user_id,
+                        'cohost_nickname' => $cohostNickname,
+                        'remaining_cohost_count' => $remainingCohostCount
+                    ]);
+
+                    Event::dispatch(new CohostLeft(
+                        $parentChannel->id,  // Use parent's MongoDB ID for WebSocket channel
+                        $stream->user_id ?? '',
+                        $cohostNickname,
+                        $remainingCohostCount
+                    ));
+                }
+            }
+
+            // Cohost cache'lerini temizle
+            Cache::forget("stream_cohosts_{$stream->id}");
+            Cache::forget("stream_heartbeat_{$stream->id}");
+
+            // Tüm cohost heartbeat'lerini temizle
+            $cohosts = Redis::smembers("agora_channel:{$stream->id}:cohosts");
+            foreach ($cohosts as $cohostId) {
+                Cache::forget("stream_heartbeat_{$stream->id}_cohost_{$cohostId}");
+            }
+
+            // Redis cohost setini temizle
+            Redis::del("agora_channel:{$stream->id}:cohosts");
+            Redis::del("agora_channel:{$stream->id}:active_cohosts");
+
             Event::dispatch(new StreamEnded($stream));
         } catch (Exception $e) {
             throw new Exception($e->getMessage());
-        }*/
+        }
     }
 
     public function joinStream(AgoraChannel $stream, User $user, $viewerroleId, $tokenRoleId): ?AgoraChannelViewer
     {
         try {
-            // Zaten izliyor mu kontrol et
-            $existingViewer = AgoraChannelViewer::where('agora_channel_id', $stream->id)
+            // Cohost stream kontrolü - ana yayının token'ını kullan
+            $channelNameForToken = $stream->channel_name;
+            $actualStreamId = $stream->id;
+
+            // Eğer bu bir cohost stream ise, ana yayının ID'sini kullan (Zego mixed stream için)
+            if ($stream->is_cohost_stream && $stream->parent_channel_id) {
+                $parentStream = AgoraChannel::find($stream->parent_channel_id);
+                if ($parentStream) {
+                    // CRITICAL: Zego için mixed stream parent'ın ID'sini kullanır
+                    $channelNameForToken = $parentStream->id;
+                    Log::info('Cohost stream viewer joining with parent ID for token', [
+                        'cohost_stream_id' => $stream->id,
+                        'parent_stream_id' => $parentStream->id,
+                        'channel_for_token' => $channelNameForToken
+                    ]);
+                }
+            }
+
+            // Aktif izleyici kontrolü
+            $activeViewer = AgoraChannelViewer::where('agora_channel_id', $actualStreamId)
                 ->where('user_id', $user->id)
                 ->where('status_id', AgoraChannelViewer::STATUS_ACTIVE)
                 ->first();
 
-            if ($existingViewer) {
-                throw new Exception('Zaten yayına katılmışsınız.');
+            if ($activeViewer) {
+                // Token'ı güncelle (cohost stream için gerekli olabilir)
+                $activeViewer->token = $this->generateToken($channelNameForToken, $user->agora_uid, $tokenRoleId);
+                $activeViewer->save();
+                return $activeViewer;
             }
 
-            $token = $this->generateToken($stream->channel_name, $user->id, $tokenRoleId);
+            // Daha önce ayrılmış izleyici var mı kontrol et
+            $leftViewer = AgoraChannelViewer::where('agora_channel_id', $actualStreamId)
+                ->where('user_id', $user->id)
+                ->where('status_id', AgoraChannelViewer::STATUS_LEFT)
+                ->first();
+
+            // Eğer daha önce ayrılmışsa, tekrar aktif yap
+            if ($leftViewer) {
+                $leftViewer->update([
+                    'status_id' => AgoraChannelViewer::STATUS_ACTIVE,
+                    'joined_at' => now(),
+                    'left_at' => null,
+                    'viewer_role_id' => $viewerroleId,
+                    'token_role_id' => $tokenRoleId,
+                    'token' => $this->generateToken($channelNameForToken, $user->agora_uid, $tokenRoleId),
+                ]);
+
+                // Redis'e tekrar ekle
+                Redis::sadd("agora_channel:{$actualStreamId}:viewers", $user->id);
+                Redis::incr("agora_channel:{$actualStreamId}:viewer_count");
+
+                // ViewerJoined eventi dispatch et - leftViewer object olmalı, ID değil
+                Event::dispatch(new ViewerJoined($leftViewer, $actualStreamId));
+
+                return $leftViewer;
+            }
+
+            $token = $this->generateToken($channelNameForToken, $user->agora_uid, $tokenRoleId);
 
             $viewer = AgoraChannelViewer::create([
-                'agora_channel_id' => $stream->id,
+                'agora_channel_id' => $actualStreamId,
                 'user_id' => $user->id,
                 'token' => $token,
                 'role_id' => $viewerroleId,
@@ -179,8 +506,8 @@ class AgoraChannelService
             ]);
 
             //Redis kayıt işlemleri
-            Redis::incr("agora_channel:{$stream->id}:viewer_count");
-            Redis::sadd("agora_channel:{$stream->id}:viewers", $user->id); // Bu SET yapısı sayesinde aynı kullanıcı 2 kere yazılamaz.
+            Redis::incr("agora_channel:{$actualStreamId}:viewer_count");
+            Redis::sadd("agora_channel:{$actualStreamId}:viewers", $user->id); // Bu SET yapısı sayesinde aynı kullanıcı 2 kere yazılamaz.
 
             // İzleyici sayısını güncelle
             $this->updateViewerCount($stream);
@@ -190,6 +517,78 @@ class AgoraChannelService
 
             return $viewer;
         } catch (Exception $e) {
+            throw new Exception($e->getMessage());
+        }
+    }
+
+    public function joinAsCohost(AgoraChannel $stream, User $user): array
+    {
+        try {
+            // Check if stream is active - either LIVE status or is_online flag
+            if ($stream->status_id !== AgoraChannel::STATUS_LIVE && !$stream->is_online) {
+                throw new Exception('Yayın aktif değil.');
+            }
+
+            // Cohost zaten var mı kontrol et
+            $existingCohost = AgoraChannelViewer::where('agora_channel_id', $stream->id)
+                ->where('user_id', $user->id)
+                ->where('role_id', AgoraChannelViewer::ROLE_HOST)
+                ->where('status_id', AgoraChannelViewer::STATUS_ACTIVE)
+                ->first();
+
+            if ($existingCohost) {
+                // Token'ı yenile
+                $existingCohost->token = $this->generateToken($stream->channel_name, $user->agora_uid, AgoraTokenService::RolePublisher);
+                $existingCohost->save();
+
+                return [
+                    'success' => true,
+                    'token' => $existingCohost->token,
+                    'channel_name' => $stream->channel_name,
+                    'agora_channel_id' => $stream->id,
+                    'agora_uid' => $user->agora_uid
+                ];
+            }
+
+            // Cohost için token oluştur
+            $token = $this->generateToken($stream->channel_name, $user->agora_uid, AgoraTokenService::RolePublisher);
+
+            // Cohost'u AgoraChannelViewer'a ekle
+            $cohostViewer = AgoraChannelViewer::create([
+                'agora_channel_id' => $stream->id,
+                'user_id' => $user->id,
+                'token' => $token,
+                'role_id' => (int) AgoraChannelViewer::ROLE_HOST, // Cohost da host rolünde
+                'status_id' => (int) AgoraChannelViewer::STATUS_ACTIVE,
+                'joined_at' => now(),
+                'is_following_streamer' => $user->isFollowing($stream->user_id),
+            ]);
+
+            // Redis kayıt işlemleri - cohost'ları ayrı tutabiliriz
+            Redis::sadd("agora_channel:{$stream->id}:cohosts", $user->id);
+
+            Log::info('Cohost joined stream', [
+                'stream_id' => $stream->id,
+                'cohost_user_id' => $user->id,
+                'token_generated' => !empty($token)
+            ]);
+
+            return [
+                'success' => true,
+                'token' => $token,
+                'channel_name' => $stream->channel_name,
+                'agora_channel_id' => $stream->id,
+                'agora_uid' => $user->agora_uid
+            ];
+
+        } catch (Exception $e) {
+            Log::error('Failed to join as cohost', [
+                'stream_id' => $stream->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             throw new Exception($e->getMessage());
         }
     }
@@ -207,6 +606,8 @@ class AgoraChannelService
                 throw new Exception('Yayında değilsiniz.');
             }
 
+            $isCohost = $viewer->role_id === AgoraChannelViewer::ROLE_HOST && $stream->user_id !== $user->id;
+
             // İzleme süresini hesapla
             $joinedAt = $viewer->joined_at;
             $leftAt = now();
@@ -220,11 +621,29 @@ class AgoraChannelService
             ]);
 
             // Redis'ten kullanıcıyı çıkar
-            Redis::srem("agora_channel:{$stream->id}:viewers", $user->id);
-            Redis::decr("agora_channel:{$stream->id}:viewer_count");
-
-            // İzleyici sayısını güncelle
-            $this->updateViewerCount($stream);
+            if ($isCohost) {
+                Redis::srem("agora_channel:{$stream->id}:cohosts", $user->id);
+                Redis::srem("agora_channel:{$stream->id}:active_cohosts", $user->id);
+                
+                // Cohost heartbeat'ini temizle
+                Cache::forget("stream_heartbeat_{$stream->id}_cohost_{$user->id}");
+                
+                // Cohost listesinden çıkar
+                $cohostHeartbeats = Cache::get("stream_cohosts_{$stream->id}", []);
+                unset($cohostHeartbeats[$user->id]);
+                Cache::put("stream_cohosts_{$stream->id}", $cohostHeartbeats, 120);
+                
+                Log::info('Cohost left stream', [
+                    'stream_id' => $stream->id,
+                    'cohost_user_id' => $user->id
+                ]);
+            } else {
+                Redis::srem("agora_channel:{$stream->id}:viewers", $user->id);
+                Redis::decr("agora_channel:{$stream->id}:viewer_count");
+                
+                // İzleyici sayısını güncelle
+                $this->updateViewerCount($stream);
+            }
 
             Event::dispatch(new ViewerLeft($stream->id, $viewer));
         } catch (Exception $e) {
@@ -235,12 +654,20 @@ class AgoraChannelService
     public function likeStream(AgoraChannel $agoraChannel, User $user)
     {
         try {
+            \Log::info('🔴 AgoraChannelService: likeStream called for channel: ' . $agoraChannel->id . ' by user: ' . $user->id);
+            
             // Beğeni sayısını redis'e kaydet
             $redisKey = "agora_channel:{$agoraChannel->id}:likes";
-            Redis::INCR($redisKey);
+            $newLikeCount = Redis::INCR($redisKey);
+            \Log::info('✅ AgoraChannelService: Redis like count incremented to: ' . $newLikeCount . ' for key: ' . $redisKey);
 
-            event(new StreamLiked($agoraChannel, $user));
+            \Log::info('🔴 AgoraChannelService: Dispatching StreamLiked event using Event facade...');
+            \Illuminate\Support\Facades\Event::dispatch(new StreamLiked($agoraChannel, $user));
+            \Log::info('✅ AgoraChannelService: StreamLiked event dispatched successfully');
+            
         } catch (Exception $e) {
+            \Log::error('❌ AgoraChannelService: likeStream error: ' . $e->getMessage());
+            \Log::error('❌ Stack trace: ' . $e->getTraceAsString());
             throw new Exception($e->getMessage());
         }
     }
@@ -365,7 +792,7 @@ class AgoraChannelService
             }
 
             if (isset($data['settings'])) {
-                $stream->settings = array_merge($stream->settings, $data['settings']);
+                $stream->settings = $data['settings'];
             }
 
             $stream->save();
@@ -445,6 +872,17 @@ class AgoraChannelService
     public function getActiveStreams(array $filters = []): \Illuminate\Contracts\Pagination\LengthAwarePaginator
     {
         $query = AgoraChannel::active();
+        
+        // Co-host yayınları dahil etme filtresi (varsayılan: true)
+        $includeCohostStreams = $filters['include_cohost_streams'] ?? true;
+        
+        // Co-host yayınları dahil edilmeyecekse filtrele
+        if (!$includeCohostStreams) {
+            $query->where(function($q) {
+                $q->whereNull('is_cohost_stream')
+                  ->orWhere('is_cohost_stream', false);
+            });
+        }
 
         // Kategori filtresi
         if (isset($filters['category_id']) && $filters['category_id']) {

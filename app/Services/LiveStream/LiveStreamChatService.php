@@ -50,9 +50,19 @@ class LiveStreamChatService
                 throw new Exception('Yasaklı kelime kullanıldı.');
             }
 
+            $userData = [
+                'id' => $user->id,
+                'nickname' => $user->nickname,
+                'avatar' => $user->avatar,
+                'username' => $user->username,
+                'bio' => $user->bio ?? null,
+                'is_approved' => $user->is_approved ?? false,
+            ];
+
             $messageData = [
                 'agora_channel_id' => $stream->id,
                 'user_id' => $user->id,
+                'user_data' => $userData,
                 'message' => $message,
                 'timestamp' => now(),
             ];

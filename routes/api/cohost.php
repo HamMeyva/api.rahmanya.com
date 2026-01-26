@@ -26,4 +26,8 @@ Route::prefix('livestream/cohost')->middleware('auth:sanctum')->group(function (
 
     // Message relay endpoint for cross-room synchronization
     Route::post('/message/relay', [CohostRegistrationController::class, 'relayMessage']);
+
+    // Host leave with co-host transition endpoints
+    Route::post('/host-leave', [CohostStreamController::class, 'handleHostLeave']);
+    Route::post('/check-active-cohosts', [CohostStreamController::class, 'checkActiveCohosts']);
 });

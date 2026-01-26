@@ -39,8 +39,13 @@ class LiveStreamChatController extends Controller
     {
         $limit = $request->input('limit', 50);
         $lastMessageId = $request->input('last_message_id');
-        
-        $stream = AgoraChannel::findOrFail($streamId);
+
+        // Stream'i bul - id, channel_name veya stream_key ile
+        $stream = AgoraChannel::where('_id', $streamId)
+            ->orWhere('id', $streamId)
+            ->orWhere('channel_name', $streamId)
+            ->orWhere('stream_key', $streamId)
+            ->firstOrFail();
         $messages = $this->chatService->getStreamMessages($stream->id, $limit, $lastMessageId);
 
         return response()->json([
@@ -71,11 +76,18 @@ class LiveStreamChatController extends Controller
             ], 422);
         }
 
-        $stream = AgoraChannel::findOrFail($streamId);
+        // Stream'i bul - id, channel_name veya stream_key ile
+        $stream = AgoraChannel::where('_id', $streamId)
+            ->orWhere('id', $streamId)
+            ->orWhere('channel_name', $streamId)
+            ->orWhere('stream_key', $streamId)
+            ->firstOrFail();
+
         $user = Auth::user();
-        
+
         // Yayın aktif mi kontrol et
-        if ($stream->status !== AgoraChannel::STATUS_LIVE || !$stream->is_online) {
+        // ✅ FIX: Use status_id instead of status (which is a string accessor)
+        if ($stream->status_id !== AgoraChannel::STATUS_LIVE || !$stream->is_online) {
             return response()->json([
                 'success' => false,
                 'message' => 'Stream is not active'

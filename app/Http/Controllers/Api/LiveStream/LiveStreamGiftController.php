@@ -40,8 +40,13 @@ class LiveStreamGiftController extends Controller
     {
         $limit = $request->input('limit', 50);
         $offset = $request->input('offset', 0);
-        
-        $stream = AgoraChannel::findOrFail($streamId);
+
+        // Stream'i bul - id, channel_name veya stream_key ile
+        $stream = AgoraChannel::where('_id', $streamId)
+            ->orWhere('id', $streamId)
+            ->orWhere('channel_name', $streamId)
+            ->orWhere('stream_key', $streamId)
+            ->firstOrFail();
         $gifts = $this->giftService->getStreamGifts($stream->id, $limit, $offset);
 
         return response()->json([
@@ -72,11 +77,17 @@ class LiveStreamGiftController extends Controller
             ], 422);
         }
 
-        $stream = AgoraChannel::findOrFail($streamId);
+        // Stream'i bul - id, channel_name veya stream_key ile
+        $stream = AgoraChannel::where('_id', $streamId)
+            ->orWhere('id', $streamId)
+            ->orWhere('channel_name', $streamId)
+            ->orWhere('stream_key', $streamId)
+            ->firstOrFail();
         $user = Auth::user();
         
         // Yayın aktif mi kontrol et
-        if ($stream->status !== AgoraChannel::STATUS_LIVE || !$stream->is_online) {
+        // ✅ FIX: Use status_id instead of status (which is a string accessor)
+        if ($stream->status_id !== AgoraChannel::STATUS_LIVE || !$stream->is_online) {
             return response()->json([
                 'success' => false,
                 'message' => 'Stream is not active'
@@ -126,7 +137,12 @@ class LiveStreamGiftController extends Controller
      */
     public function topDonators($streamId)
     {
-        $stream = AgoraChannel::findOrFail($streamId);
+        // Stream'i bul - id, channel_name veya stream_key ile
+        $stream = AgoraChannel::where('_id', $streamId)
+            ->orWhere('id', $streamId)
+            ->orWhere('channel_name', $streamId)
+            ->orWhere('stream_key', $streamId)
+            ->firstOrFail();
         $donators = $this->giftService->getTopDonators($stream->id);
 
         return response()->json([

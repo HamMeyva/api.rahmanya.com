@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Redis;
 use App\Events\LiveStream\TopGiftSendersUpdated;
 use App\Models\Agora\AgoraChannel;
 use App\Models\Challenge\ChallengeTeam;
+use App\Models\PKBattle;
+use App\Services\LiveStream\PKBattleScoreService;
 use Illuminate\Support\Facades\Log;
 
 class GiftSenderRedisService
@@ -33,6 +35,9 @@ class GiftSenderRedisService
         $payload = $this->getTopGiftSendersByStreamer($stream->id, $recipientUserId);
         broadcast(new TopGiftSendersUpdated($stream->id, $payload));
 
+
+        // PK Battle skorlarını güncelle
+        $this->updatePKBattleScores($stream, $recipientUserId, $totalCost);
 
         //eğer pk aktifse
         $challenge = $stream->activeChallenge;
@@ -92,6 +97,44 @@ class GiftSenderRedisService
             'receiver_user_id' => $streamerUserId,
             'top_senders' => $streamerTopSenders,
         ];
+    }
+
+    /**
+     * PK Battle skorlarını güncelle
+     */
+    private function updatePKBattleScores(AgoraChannel $stream, string $recipientUserId, int $totalCost): void
+    {
+        // PK Battle var mı kontrol et
+        $pkBattle = PKBattle::where('live_stream_id', $stream->id)
+            ->where('status', 'active')
+            ->where('is_round_active', true)
+            ->first();
+
+        if (!$pkBattle) {
+            return; // PK Battle yok veya aktif değil
+        }
+
+        // Hediye alan kişi battle katılımcısı mı kontrol et
+        if ($recipientUserId !== $pkBattle->challenger_id && $recipientUserId !== $pkBattle->opponent_id) {
+            return; // Hediye battle katılımcısına gönderilmemiş
+        }
+
+        try {
+            // PK Battle skorlarını hesapla ve yayınla
+            $scoreService = app(PKBattleScoreService::class);
+            $scoreService->calculateAndUpdateScores($pkBattle);
+            
+            Log::info('PK Battle scores updated after gift', [
+                'battle_id' => $pkBattle->id,
+                'recipient_user_id' => $recipientUserId,
+                'gift_value' => $totalCost,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to update PK Battle scores after gift', [
+                'battle_id' => $pkBattle->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function resetTopSenders(int $channelId): void

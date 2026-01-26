@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Relations\Team;
 
 class Gift extends Model
 {
@@ -31,7 +33,9 @@ class Gift extends Model
         // NEW: ZIP-based animation system
         'zip_path',
         'is_zip_animation',
-        'zip_frame_count'
+        'zip_frame_count',
+        // Team-based filtering
+        'team_id'
     ];
 
     protected $casts = [
@@ -106,14 +110,14 @@ class Gift extends Model
         if ($firstAsset && $firstAsset->imageUrl) {
             return $firstAsset->imageUrl;
         }
-        
+
         // Fallback to direct image_path if it exists (use getAttributeValue to avoid recursion)
         $imagePath = $this->getAttributeValue('image_path');
         if ($imagePath) {
             $bunnyCdnService = app(\App\Services\BunnyCdnService::class);
             return $bunnyCdnService->getStorageUrl($imagePath);
         }
-        
+
         return null;
     }
 
@@ -131,6 +135,25 @@ class Gift extends Model
     }
 
     /**
+     * Filter gifts by team_id
+     */
+    public function scopeByTeam($query, $teamId)
+    {
+        if ($teamId === null) {
+            return $query->whereNull('team_id');
+        }
+        return $query->where('team_id', $teamId);
+    }
+
+    /**
+     * Get the team that owns this gift
+     */
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    /**
      * Get the video URL from the first asset or fallback to video_path
      */
     public function getVideoUrlAttribute(): ?string
@@ -140,14 +163,14 @@ class Gift extends Model
         if ($firstAsset && $firstAsset->videoUrl) {
             return $firstAsset->videoUrl;
         }
-        
+
         // Fallback to direct video_path if it exists (use getAttributeValue to avoid recursion)
         $videoPath = $this->getAttributeValue('video_path');
         if ($videoPath) {
             $bunnyCdnService = app(\App\Services\BunnyCdnService::class);
             return $bunnyCdnService->getStorageUrl($videoPath);
         }
-        
+
         return null;
     }
 
@@ -247,7 +270,7 @@ class Gift extends Model
         if (!$this->is_zip_animation || !$this->zip_path) {
             return null;
         }
-        
+
         $bunnyCdnService = app(\App\Services\BunnyCdnService::class);
         return $bunnyCdnService->getStorageUrl($this->zip_path);
     }
@@ -269,14 +292,14 @@ class Gift extends Model
                 'compression_level' => 3, // Hızlı açılma için düşük seviye
             ];
         }
-        
+
         // Fallback: Frame-by-frame sistem
         if ($this->is_frame_animation) {
             $frameUrls = $this->getOrderedFrameUrls();
             if (empty($frameUrls)) {
                 $frameUrls = $this->frame_urls;
             }
-            
+
             return [
                 'animation_type' => 'frames',
                 'frame_urls' => $frameUrls,
@@ -285,7 +308,7 @@ class Gift extends Model
                 'animation_style' => 'simple', // Basit stil
             ];
         }
-        
+
         // Fallback: Video sistem
         return [
             'animation_type' => 'video',

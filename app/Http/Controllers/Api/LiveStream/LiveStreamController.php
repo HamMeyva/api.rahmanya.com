@@ -84,7 +84,12 @@ class LiveStreamController extends Controller
      */
     public function show($id)
     {
-        $stream = AgoraChannel::findOrFail($id);
+        // Stream'i bul - id, channel_name veya stream_key ile
+        $stream = AgoraChannel::where('_id', $id)
+            ->orWhere('id', $id)
+            ->orWhere('channel_name', $id)
+            ->orWhere('stream_key', $id)
+            ->firstOrFail();
 
         return response()->json([
             'success' => true,
@@ -259,11 +264,18 @@ class LiveStreamController extends Controller
      */
     public function join(Request $request, $id)
     {
-        $stream = AgoraChannel::findOrFail($id);
+        // Stream'i bul - id, channel_name veya stream_key ile
+        $stream = AgoraChannel::where('_id', $id)
+            ->orWhere('id', $id)
+            ->orWhere('channel_name', $id)
+            ->orWhere('stream_key', $id)
+            ->firstOrFail();
+
         $user = Auth::user();
 
         // Yayın aktif mi kontrol et
-        if ($stream->status !== AgoraChannel::STATUS_LIVE || !$stream->is_online) {
+        // ✅ FIX: Use status_id instead of status (which is a string accessor)
+        if ($stream->status_id !== AgoraChannel::STATUS_LIVE || !$stream->is_online) {
             return response()->json([
                 'success' => false,
                 'message' => 'Stream is not active'
@@ -340,5 +352,132 @@ class LiveStreamController extends Controller
                 'likes' => $stream->total_likes
             ]
         ]);
+    }
+
+    /**
+     * Get all participants in a live stream room
+     * Includes host and all cohosts
+     *
+     * @param string $roomId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getRoomParticipants($roomId)
+    {
+        try {
+            \Illuminate\Support\Facades\Log::info('Fetching room participants', ['room_id' => $roomId]);
+
+            // multi_streams tablosundan aktif katılımcıları çek
+            $participants = \Illuminate\Support\Facades\DB::table('multi_streams')
+                ->where('room_id', $roomId)
+                ->where('is_active', true)
+                ->join('users', 'multi_streams.user_id', '=', 'users.id')
+                ->select(
+                    'users.id',
+                    'users.name',
+                    'users.username',
+                    'users.avatar',
+                    'users.level',
+                    'multi_streams.stream_id',
+                    'multi_streams.stream_type', // 'host' or 'cohost'
+                    'multi_streams.joined_at'
+                )
+                ->orderByRaw("CASE WHEN multi_streams.stream_type = 'host' THEN 0 ELSE 1 END") // Host ilk sırada
+                ->orderBy('multi_streams.joined_at', 'asc')
+                ->get();
+
+            // Check if there's a mixed stream for this room
+            $mixedStream = \Illuminate\Support\Facades\DB::table('mixed_streams')
+                ->where('room_id', $roomId)
+                ->where('is_active', true)
+                ->select('mixed_stream_id', 'task_id')
+                ->first();
+
+            \Illuminate\Support\Facades\Log::info('Room participants found', [
+                'room_id' => $roomId,
+                'participant_count' => $participants->count(),
+                'host_count' => $participants->where('stream_type', 'host')->count(),
+                'cohost_count' => $participants->where('stream_type', 'cohost')->count(),
+                'has_mixed_stream' => $mixedStream !== null,
+                'mixed_stream_id' => $mixedStream->mixed_stream_id ?? null
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'participants' => $participants,
+                'mixed_stream' => $mixedStream ? [
+                    'mixed_stream_id' => $mixedStream->mixed_stream_id,
+                    'task_id' => $mixedStream->task_id,
+                    'should_use_mixed' => $participants->where('stream_type', 'cohost')->count() > 0
+                ] : null,
+                'meta' => [
+                    'total_count' => $participants->count(),
+                    'host_count' => $participants->where('stream_type', 'host')->count(),
+                    'cohost_count' => $participants->where('stream_type', 'cohost')->count(),
+                    'has_mixed_stream' => $mixedStream !== null
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error fetching room participants', [
+                'room_id' => $roomId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to fetch room participants',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Yayını sonlandırır
+     *
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function endStream($id)
+    {
+        try {
+            $stream = AgoraChannel::findOrFail($id);
+
+            // Yetki kontrolü
+            if (Auth::id() !== $stream->user_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            // Stream'i sonlandır
+            $success = $this->channelService->endStream($stream);
+
+            if (!$success) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to end stream'
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Stream ended successfully',
+                'data' => new AgoraChannelResource($stream->fresh())
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error ending stream', [
+                'stream_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to end stream',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }

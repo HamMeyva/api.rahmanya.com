@@ -12,16 +12,25 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('livestream')->middleware('auth:sanctum')->group(function () {
 
-    // Stream management
-    Route::post('/start', [LiveStreamController::class, 'store']); // Go Live - Yayın başlat
-    Route::post('/{id}/go-live', [LiveStreamController::class, 'goLive']); // Stream'i aktif yap
-    Route::post('/{id}/end', [LiveStreamController::class, 'endStream']); // Yayını bitir
+    // Stream management - Read only
     Route::get('/{id}', [LiveStreamController::class, 'show']); // Stream bilgisi
 
-    // Chat endpoints
+    // Routes that require can.interact middleware (blocked for users with red card)
+    Route::middleware('can.interact')->group(function () {
+        // Stream management - Write operations
+        Route::post('/start', [LiveStreamController::class, 'store']); // Go Live - Yayın başlat
+        Route::post('/{id}/go-live', [LiveStreamController::class, 'goLive']); // Stream'i aktif yap
+
+        // Chat - Send messages
+        Route::post('/chat/{streamId}/messages', [LiveStreamChatController::class, 'store']);
+    });
+
+    // Stream end (allowed even for red card users)
+    Route::post('/{id}/end', [LiveStreamController::class, 'endStream']); // Yayını bitir
+
+    // Chat endpoints - Read only
     Route::prefix('chat/{streamId}')->controller(LiveStreamChatController::class)->group(function () {
         Route::get('/messages', 'index');
-        Route::post('/messages', 'store');
         Route::get('/pinned', 'getPinnedMessage');
     });
 

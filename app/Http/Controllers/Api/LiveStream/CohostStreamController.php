@@ -7,6 +7,7 @@ use App\Models\Agora\AgoraChannel;
 use App\Models\User;
 use App\Services\ZegoStreamMixerService;
 use App\Services\LiveStream\AgoraChannelService;
+use App\Services\LiveStream\HostLeaveTransitionService;
 use App\Services\StreamService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -20,15 +21,18 @@ class CohostStreamController extends Controller
     private ZegoStreamMixerService $mixerService;
     private AgoraChannelService $channelService;
     private StreamService $streamService;
+    private HostLeaveTransitionService $hostLeaveService;
 
     public function __construct(
         ZegoStreamMixerService $mixerService,
         AgoraChannelService $channelService,
-        StreamService $streamService
+        StreamService $streamService,
+        HostLeaveTransitionService $hostLeaveService
     ) {
         $this->mixerService = $mixerService;
         $this->channelService = $channelService;
         $this->streamService = $streamService;
+        $this->hostLeaveService = $hostLeaveService;
     }
 
     /**
@@ -516,6 +520,143 @@ class CohostStreamController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to remove co-host'
+            ], 500);
+        }
+    }
+
+    /**
+     * Handle host leaving the stream
+     * Triggers co-hosts to transition to independent broadcasting
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function handleHostLeave(Request $request): JsonResponse
+    {
+        $request->validate([
+            'channel_name' => 'required|string'
+        ]);
+
+        try {
+            // Verify requester is the host
+            $hostStream = AgoraChannel::where('channel_name', $request->channel_name)
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if (!$hostStream) {
+                // Also try by ID
+                $hostStream = AgoraChannel::where('id', $request->channel_name)
+                    ->where('user_id', Auth::id())
+                    ->first();
+            }
+
+            if (!$hostStream) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Unauthorized or stream not found'
+                ], 403);
+            }
+
+            // Check if stream is already ended
+            if ($hostStream->status_id === AgoraChannel::STATUS_ENDED) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Stream already ended'
+                ], 400);
+            }
+
+            Log::info('🔄 HOST LEAVE API: Host initiating leave', [
+                'host_stream_id' => $hostStream->id,
+                'host_user_id' => Auth::id(),
+                'has_cohosts' => $this->hostLeaveService->hasActiveCohosts($hostStream->id)
+            ]);
+
+            // Use the transition service to handle the leave
+            $result = $this->hostLeaveService->handleHostLeave($hostStream);
+
+            if (!$result['success']) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $result['error'] ?? 'Failed to handle host leave'
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $result['message'],
+                'data' => [
+                    'has_cohosts' => $result['has_cohosts'] ?? false,
+                    'transitioned_cohosts' => $result['transitioned_cohosts'] ?? [],
+                    'cohost_count' => $result['cohost_count'] ?? 0
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ HOST LEAVE API: Error handling host leave', [
+                'channel_name' => $request->channel_name,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to handle host leave: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Check if host stream has active co-hosts
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function checkActiveCohosts(Request $request): JsonResponse
+    {
+        $request->validate([
+            'channel_name' => 'required|string'
+        ]);
+
+        try {
+            // Verify requester is the host
+            $hostStream = AgoraChannel::where('channel_name', $request->channel_name)
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if (!$hostStream) {
+                $hostStream = AgoraChannel::where('id', $request->channel_name)
+                    ->where('user_id', Auth::id())
+                    ->first();
+            }
+
+            if (!$hostStream) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Unauthorized or stream not found'
+                ], 403);
+            }
+
+            $hasCohosts = $this->hostLeaveService->hasActiveCohosts($hostStream->id);
+            $cohostCount = $this->hostLeaveService->getActiveCohostCount($hostStream->id);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'has_active_cohosts' => $hasCohosts,
+                    'cohost_count' => $cohostCount
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error checking active cohosts', [
+                'channel_name' => $request->channel_name,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to check cohosts'
             ], 500);
         }
     }

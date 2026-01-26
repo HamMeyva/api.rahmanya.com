@@ -48,7 +48,7 @@ class LiveStreamAnalyticsService
             // Yayın süresi
             $startedAt = $stream->started_at ?: $stream->created_at;
             $endedAt = $stream->ended_at ?: now();
-            $duration = $startedAt->diffInSeconds($endedAt);
+            $duration = (int) $startedAt->diffInSeconds($endedAt); // ✅ FIX: Cast to integer
 
             // İstatistikleri topla
             $viewers = AgoraChannelViewer::where('agora_channel_id', $stream->id)->get();
@@ -335,7 +335,7 @@ class LiveStreamAnalyticsService
 
             // İzleme süresini güncelle
             if ($viewer->joined_at) {
-                $viewer->watch_duration = $stream->ended_at->diffInSeconds($viewer->joined_at);
+                $viewer->watch_duration = (int) $stream->ended_at->diffInSeconds($viewer->joined_at); // ✅ FIX: Cast to integer
             }
 
             $viewer->save();

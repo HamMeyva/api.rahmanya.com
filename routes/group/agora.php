@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\v1\AgoraController;
+use App\Http\Controllers\Api\v1\LiveStreamWebSocketController;
 use App\Http\Controllers\Api\LiveStream\LiveStreamController;
 use App\Http\Controllers\Api\LiveStream\LiveStreamRecordingController;
 use Illuminate\Support\Facades\Route;
@@ -27,4 +28,12 @@ Route::prefix('agora')->middleware('auth:sanctum')->group(function () {
     Route::post('/join-stream', function(\Illuminate\Http\Request $request) {
         return app(LiveStreamController::class)->join($request, $request->input('channel_id'));
     });
+});
+
+// WebSocket client event handlers
+Route::prefix('live-stream/websocket')->group(function () {
+    // Handle client-gift-sent events from WebSocket
+    Route::post('/gift-sent', [LiveStreamWebSocketController::class, 'handleGiftSent']);
+    // Generic client event handler
+    Route::post('/client-event', [LiveStreamWebSocketController::class, 'handleClientEvent']);
 });
