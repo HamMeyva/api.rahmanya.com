@@ -1,0 +1,16 @@
+extend type LiveStream {
+    totalGiftsReceived: Int!
+    giftTransactions: [GiftTransaction!]!
+    zegoRoomId: String
+    zegoEnabled: Boolean!
+    is_cohost_stream: Boolean
+    parent_channel_id: ID
+    cohost_channel_ids: [ID]
+    shared_video_room_id: String
+}
+
+extend type User {
+    wallet: UserWallet
+    sentGifts: [GiftTransaction!]!
+    receivedGifts: [GiftTransaction!]!
+}

@@ -3,6 +3,8 @@ type Video @model {
     id: ID!
     video_guid: String!
     user_id: String!
+    product_id: String
+    seller_id: String
     user: User @field(resolver: "App\\GraphQL\\Resolvers\\VideoResolver@resolveUser")
     title: String!
     description: String

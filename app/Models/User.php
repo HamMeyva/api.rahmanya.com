@@ -419,43 +419,64 @@ class User extends Authenticatable
     public function activeStoriesCount(): Attribute
     {
         return Attribute::get(function () {
-            return Story::where('user_id', $this->id)
-                ->active()
-                ->count();
+            try {
+                if (!class_exists(\App\Models\Story::class))
+                    return 0;
+                return Story::where('user_id', $this->id)
+                    ->active()
+                    ->count();
+            } catch (\Throwable $e) {
+                return 0;
+            }
         });
     }
 
     public function hasActiveStories(): Attribute
     {
         return Attribute::get(function () {
-            return Story::where('user_id', $this->id)
-                ->active()
-                ->exists();
+            try {
+                if (!class_exists(\App\Models\Story::class))
+                    return false;
+                return Story::where('user_id', $this->id)
+                    ->active()
+                    ->exists();
+            } catch (\Throwable $e) {
+                return false;
+            }
         });
     }
 
     public function hasActiveLiveStream(): Attribute
     {
         return Attribute::get(function () {
-            return AgoraChannel::where('user_id', $this->id)
-                ->where('status_id', AgoraChannel::STATUS_LIVE)
-                ->exists();
+            try {
+                return AgoraChannel::where('user_id', $this->id)
+                    ->where('status_id', AgoraChannel::STATUS_LIVE)
+                    ->exists();
+            } catch (\Throwable $e) {
+                return false;
+            }
         });
     }
 
     public function activeLiveStream(): Attribute
     {
         return Attribute::get(function () {
-            return AgoraChannel::where('user_id', $this->id)
-                ->where('status_id', AgoraChannel::STATUS_LIVE)
-                ->first();
+            try {
+                return AgoraChannel::where('user_id', $this->id)
+                    ->where('status_id', AgoraChannel::STATUS_LIVE)
+                    ->first();
+            } catch (\Throwable $e) {
+                return null;
+            }
         });
     }
 
     public function isOnline(): Attribute
     {
         return Attribute::get(
-            fn() => Redis::sismember('active-users', $this->id)
+            // fn() => Redis::sismember('active-users', $this->id)
+            fn() => false
         );
     }
 

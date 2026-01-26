@@ -1,0 +1,55 @@
+# Zego Mixer GraphQL Schema
+
+type CohostStreamResponse {
+    success: Boolean!
+    message: String
+    mixed_stream_id: String
+    task_id: String
+}
+
+extend type Mutation {
+    # Register a co-host stream and update mixer
+    registerCohostStream(
+        original_stream_id: String!
+        cohost_stream_id: String!
+        cohost_user_id: String!
+    ): CohostStreamResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@registerCohostStream")
+
+    # Update mixer with new participants
+    updateZegoMixer(
+        task_id: String!
+        participants: [MixerParticipantInput!]!
+    ): CohostStreamResponse!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateZegoMixer")
+}
+
+input MixerParticipantInput {
+    stream_id: String!
+    user_id: String!
+    chat_room_id: String!
+}
+
+# Subscription temporarily disabled - needs proper implementation
+# extend type Subscription {
+#     # Listen for mixer updates
+#     mixerUpdated(room_id: String!): MixerUpdateEvent
+#         @subscription(class: "App\\GraphQL\\Subscriptions\\MixerUpdated")
+# }
+
+type MixerUpdateEvent {
+    room_id: String!
+    mixed_stream_id: String!
+    participants: [MixerParticipant!]!
+    layout_type: String!
+    participant_count: Int!
+    timestamp: String!
+}
+
+type MixerParticipant {
+    stream_id: String!
+    user_id: String!
+    chat_room_id: String!
+    position: Int
+    username: String
+}

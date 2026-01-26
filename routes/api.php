@@ -57,22 +57,22 @@ Route::group(['prefix' => 'v1'], function () {
     // Gift frame URLs endpoint - separate from WebSocket to avoid payload limits
     Route::get('/gifts/{giftId}/frame-urls', function ($giftId) {
         $gift = \App\Models\Gift::find($giftId);
-        
+
         if (!$gift || !$gift->is_frame_animation) {
             return response()->json(['error' => 'Gift not found or not frame animation'], 404);
         }
-        
+
         // Try to get frame URLs from multiple sources
         $frameUrls = [];
-        
+
         // 1. Try getOrderedFrameUrls() which gets from assets
         $frameUrls = $gift->getOrderedFrameUrls();
-        
+
         // 2. If empty, try frame_urls attribute (from frame_paths)
         if (empty($frameUrls)) {
             $frameUrls = $gift->frame_urls ?? [];
         }
-        
+
         // 3. If still empty, check frame_paths directly
         if (empty($frameUrls) && !empty($gift->frame_paths)) {
             $bunnyCdnService = app(\App\Services\BunnyCdnService::class);
@@ -80,7 +80,7 @@ Route::group(['prefix' => 'v1'], function () {
                 $frameUrls[] = $bunnyCdnService->getStorageUrl($framePath);
             }
         }
-        
+
         // Log for debugging
         \Log::info('🎁 API: Frame URLs request', [
             'gift_id' => $gift->id,
@@ -92,7 +92,7 @@ Route::group(['prefix' => 'v1'], function () {
             'first_url' => $frameUrls[0] ?? null,
             'last_url' => end($frameUrls) ?: null,
         ]);
-        
+
         return response()->json([
             'gift_id' => $gift->id,
             'frame_urls' => $frameUrls,
@@ -106,11 +106,11 @@ Route::group(['prefix' => 'v1'], function () {
     // ZIP gift endpoint optimized for mobile Flutter
     Route::get('/gifts/{giftId}/zip-animation', function ($giftId) {
         $gift = \App\Models\Gift::find($giftId);
-        
+
         if (!$gift || !$gift->is_zip_animation || !$gift->zip_path) {
             return response()->json(['error' => 'Gift not found or not ZIP animation'], 404);
         }
-        
+
         return response()->json([
             'gift_id' => $gift->id,
             'zip_url' => $gift->zip_url,
@@ -131,4 +131,91 @@ Route::group(['prefix' => 'v1'], function () {
     // Broadcast test endpoints
     Route::post('/broadcast/test', [App\Http\Controllers\Api\v1\BroadcastTestController::class, 'testBroadcast']);
     Route::post('/broadcast/fix', [App\Http\Controllers\Api\v1\BroadcastTestController::class, 'fixBroadcast']);
-});    include 'group/zego.php';
+
+    // Debug endpoint for seller videos
+    Route::get('/debug/seller-videos', function () {
+        $sellerVideos = \App\Models\Video::where('is_sport', true)->get();
+
+        $statusBreakdown = $sellerVideos->groupBy('status')->map(fn($g) => $g->count());
+
+        $details = $sellerVideos->map(function ($video) {
+            return [
+                'id' => $video->id,
+                'title' => $video->title ?? $video->description ?? 'No title',
+                'is_sport' => $video->is_sport,
+                'status' => $video->status,
+                'trending_score' => $video->trending_score,
+                'seller_id' => $video->seller_id ?? null,
+                'product_id' => $video->product_id ?? null,
+                'created_at' => $video->created_at,
+            ];
+        });
+
+        return response()->json([
+            'total_seller_videos' => $sellerVideos->count(),
+            'status_breakdown' => $statusBreakdown,
+            'videos' => $details,
+        ]);
+    });
+
+    // Fix seller videos endpoint (public for easy access)
+    Route::post('/debug/fix-seller-videos', function () {
+        $sellerVideos = \App\Models\Video::where('is_sport', true)->get();
+
+        $updated = 0;
+        $details = [];
+
+        foreach ($sellerVideos as $video) {
+            $changes = [];
+
+            if ($video->status !== 'finished') {
+                $changes[] = "status: {$video->status} -> finished";
+                $video->status = 'finished';
+            }
+
+            if (($video->trending_score ?? 0) < 1000000) {
+                $changes[] = "trending_score: {$video->trending_score} -> 1000000";
+                $video->trending_score = 1000000;
+            }
+
+            if (!empty($changes)) {
+                $video->save();
+                $updated++;
+                $details[] = [
+                    'id' => $video->id,
+                    'changes' => $changes,
+                ];
+            }
+        }
+
+        // Also fix videos with seller_id or product_id
+        $potentialVideos = \App\Models\Video::where(function ($q) {
+            $q->whereNotNull('product_id')->orWhereNotNull('seller_id');
+        })->where('is_sport', '!=', true)->get();
+
+        foreach ($potentialVideos as $video) {
+            $video->is_sport = true;
+            $video->status = 'finished';
+            $video->trending_score = max($video->trending_score ?? 0, 1000000);
+            $video->save();
+            $updated++;
+            $details[] = [
+                'id' => $video->id,
+                'changes' => ['marked as seller video', 'is_sport -> true', 'status -> finished'],
+            ];
+        }
+
+        // Clear cache
+        \Illuminate\Support\Facades\Cache::flush();
+
+        return response()->json([
+            'success' => true,
+            'updated' => $updated,
+            'potential_fixed' => $potentialVideos->count(),
+            'cache_cleared' => true,
+            'details' => $details,
+        ]);
+    });
+});
+include 'group/zego.php';
+

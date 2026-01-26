@@ -33,53 +33,62 @@ class ChatResolver
      */
     public function getConversations($rootValue, array $args)
     {
-        $user = Auth::user();
-        $page = $args['page'] ?? 1;
-        $perPage = $args['per_page'] ?? 15;
+        try {
+            $user = Auth::user();
+            $page = $args['page'] ?? 1;
+            $perPage = $args['per_page'] ?? 15;
 
-        $conversations = Conversation::where('participants', 'all', [$user->id])
-            ->where('is_active', true)
-            ->orderBy('updated_at', 'desc')
-            ->skip(($page - 1) * $perPage)
-            ->take($perPage)
-            ->get();
+            $conversations = Conversation::where('participants', 'all', [$user->id])
+                ->where('is_active', true)
+                ->orderBy('updated_at', 'desc')
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get();
 
-        $total = Conversation::where('participants', 'all', [$user->id])
-            ->where('is_active', true)
-            ->count();
+            $total = Conversation::where('participants', 'all', [$user->id])
+                ->where('is_active', true)
+                ->count();
 
-        // Enhance conversations with additional data
-        $enhancedConversations = $conversations->map(function ($conversation) use ($user) {
-            // Get the other participant
-            $otherParticipantId = collect($conversation->getParticipantIds())->first(function ($participantId) use ($user) {
-                return $participantId != $user->id;
+            // Enhance conversations with additional data
+            $enhancedConversations = $conversations->map(function ($conversation) use ($user) {
+                // Get the other participant
+                $otherParticipantId = collect($conversation->getParticipantIds())->first(function ($participantId) use ($user) {
+                    return $participantId != $user->id;
+                });
+
+                $otherUser = User::find($otherParticipantId);
+
+                return [
+                    'id' => (string) $conversation->_id,
+                    'participants' => $conversation->getParticipantIds(),
+                    'last_message' => $conversation->last_message,
+                    'unread_count' => $conversation->getUnreadCountForUser($user->id),
+                    'created_at' => $conversation->created_at,
+                    'updated_at' => $conversation->updated_at,
+                    'other_user' => $otherUser ? [
+                        'id' => $otherUser->id,
+                        'name' => $otherUser->name,
+                        'surname' => $otherUser->surname,
+                        'nickname' => $otherUser->nickname,
+                        'avatar' => $otherUser->avatar
+                    ] : null
+                ];
             });
 
-            $otherUser = User::find($otherParticipantId);
-
             return [
-                'id' => (string)$conversation->_id,
-                'participants' => $conversation->getParticipantIds(),
-                'last_message' => $conversation->last_message,
-                'unread_count' => $conversation->getUnreadCountForUser($user->id),
-                'created_at' => $conversation->created_at,
-                'updated_at' => $conversation->updated_at,
-                'other_user' => $otherUser ? [
-                    'id' => $otherUser->id,
-                    'name' => $otherUser->name,
-                    'surname' => $otherUser->surname,
-                    'nickname' => $otherUser->nickname,
-                    'avatar' => $otherUser->avatar
-                ] : null
+                'conversations' => $enhancedConversations,
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage
             ];
-        });
-
-        return [
-            'conversations' => $enhancedConversations,
-            'total' => $total,
-            'page' => $page,
-            'per_page' => $perPage
-        ];
+        } catch (\Throwable $e) {
+            return [
+                'conversations' => [],
+                'page' => 1,
+                'per_page' => 15,
+                'total' => 0
+            ];
+        }
     }
 
     /**
@@ -134,8 +143,8 @@ class ChatResolver
             $sender = $message->sender();
 
             $data = [
-                'id' => (string)$message->_id,
-                'conversation_id' => (string)$message->conversation_id,
+                'id' => (string) $message->_id,
+                'conversation_id' => (string) $message->conversation_id,
                 'sender_id' => $message->sender_id,
                 'content' => $message->content,
                 'type' => $message->type ?? 'text',
@@ -213,7 +222,7 @@ class ChatResolver
         $otherUser = $user->id === $receiverId ? $user : $receiver;
 
         return [
-            'id' => (string)$conversation->_id,
+            'id' => (string) $conversation->_id,
             'participants' => $conversation->getParticipantIds(),
             'last_message' => $conversation->last_message,
             'unread_count' => $conversation->getUnreadCountForUser($user->id),
@@ -273,8 +282,8 @@ class ChatResolver
         $sender = $message->sender();
 
         return [
-            'id' => (string)$message->_id,
-            'conversation_id' => (string)$message->conversation_id,
+            'id' => (string) $message->_id,
+            'conversation_id' => (string) $message->conversation_id,
             'sender_id' => $message->sender_id,
             'content' => $message->content,
             'type' => $message->type,
@@ -420,8 +429,8 @@ class ChatResolver
         $sender = $message->sender();
 
         return [
-            'id' => (string)$message->_id,
-            'conversation_id' => (string)$message->conversation_id,
+            'id' => (string) $message->_id,
+            'conversation_id' => (string) $message->conversation_id,
             'sender_id' => $message->sender_id,
             'content' => $message->content,
             'type' => $message->type,
@@ -472,7 +481,7 @@ class ChatResolver
             event(new MessageRead(
                 $message->conversation_id,
                 $user->id,
-                (string)$message->_id,
+                (string) $message->_id,
                 $message->read_at->toDateTimeString()
             ));
         }
@@ -516,7 +525,7 @@ class ChatResolver
             event(new MessageRead(
                 $message->conversation_id,
                 $user->id,
-                (string)$message->_id,
+                (string) $message->_id,
                 $message->read_at->toDateTimeString()
             ));
         }
@@ -746,8 +755,8 @@ class ChatResolver
                 // Get the other participant
                 $otherParticipantId = collect($conversation->participants)
                     ->first(function ($participantId) use ($user) {
-                        return $participantId != $user->id;
-                    });
+                    return $participantId != $user->id;
+                });
 
                 $otherParticipant = User::find($otherParticipantId);
 
@@ -879,7 +888,8 @@ class ChatResolver
 
         foreach ($userIds as $userId) {
             $user = User::find($userId);
-            if (!$user) continue;
+            if (!$user)
+                continue;
 
             $conversation = Conversation::findOrCreateConversation($authUser->id, $user->id);
             if ($conversation && !in_array($userId, $conversation->getParticipantIds())) {
@@ -947,7 +957,8 @@ class ChatResolver
 
         foreach ($userIds as $userId) {
             $user = User::find($userId);
-            if (!$user) continue;
+            if (!$user)
+                continue;
 
             $conversation = Conversation::findOrCreateConversation($authUser->id, $user->id);
             if ($conversation && !in_array($userId, $conversation->getParticipantIds())) {

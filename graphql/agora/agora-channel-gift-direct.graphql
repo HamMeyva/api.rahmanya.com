@@ -1,0 +1,17 @@
+# --- 📌 Start::Input Models ---
+input SendGiftToStreamDirectInput {
+    agora_channel_id: ID!
+    recipient_user_id: ID!
+    gift_id: ID!
+    quantity: Int!
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # Yayına hediye gönder (direkt gift_id ile)
+    sendGiftToStreamDirect(input: SendGiftToStreamDirectInput!): SendGiftToStreamResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraGiftResolver@sendGiftToStreamDirect")
+}
+# --- 📌 End::Mutations ---

@@ -20,9 +20,12 @@ use Illuminate\Validation\ValidationException;
 use App\Services\LiveStream\AgoraChannelService;
 use App\Services\LiveStream\LiveStreamGiftService;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
+use App\GraphQL\Traits\ChecksRedCardPunishment;
 
 class AgoraResolver
 {
+    use ChecksRedCardPunishment;
+
     protected AgoraChannelService $agoraChannelService;
     protected LiveStreamGiftService $liveStreamGiftService;
     protected BunnyCdnService $bunnyCdnService;
@@ -252,6 +255,10 @@ class AgoraResolver
     public function startStream($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo): array
     {
         $authUser = Auth::user();
+
+        // Check for red card punishment
+        $this->checkRedCardPunishment($authUser->id);
+
         $input = isset($args['input']) ? $args['input'] : $args;
 
         $validator = Validator::make($input, [
@@ -363,7 +370,8 @@ class AgoraResolver
                 'token' => $agoraChannel->token ?? null,
                 'channel_name' => $agoraChannel->channel_name ?? null,
                 'stream_key' => $agoraChannel->stream_key ?? null,
-                'agora_channel_id' => $agoraChannel->id
+                'agora_channel_id' => $agoraChannel->id,
+                'agora_uid' => $authUser->agora_uid
             ];
         } catch (Exception $e) {
             return [
@@ -432,7 +440,17 @@ class AgoraResolver
             throw new Exception('You are not authorized to manage this stream');
         }
 
-        return $this->agoraChannelService->goLive($stream);
+        // Call the service method and check if successful
+        $success = $this->agoraChannelService->goLive($stream);
+        
+        if (!$success) {
+            throw new Exception('Failed to start live stream');
+        }
+
+        // Refresh the stream from database to get updated data
+        $stream->refresh();
+        
+        return $stream;
     }
 
     /**
@@ -499,12 +517,49 @@ class AgoraResolver
             ];
         }
 
+        // Cohost stream için doğru channel_name'i döndür
+        $channelNameToReturn = $agoraChannel->channel_name;
+        $parentChannelName = null;
+
+        Log::info('JoinStream: Processing stream', [
+            'stream_id' => $agoraChannel->id,
+            'channel_name' => $agoraChannel->channel_name,
+            'is_cohost_stream' => $agoraChannel->is_cohost_stream,
+            'parent_channel_id' => $agoraChannel->parent_channel_id
+        ]);
+
+        if ($agoraChannel->is_cohost_stream && $agoraChannel->parent_channel_id) {
+            $parentStream = AgoraChannel::find($agoraChannel->parent_channel_id);
+            if ($parentStream) {
+                // CRITICAL: For Zego, mixed stream ID uses the parent's stream ID, not channel_name
+                // Mixed stream format is: {parent_stream_id}_mixed
+                $parentChannelName = $parentStream->id; // Use parent's ID for mixed stream
+                $channelNameToReturn = $parentStream->id; // Return parent's ID
+
+                Log::info('Cohost viewer: Using parent ID for mixed stream', [
+                    'cohost_stream_id' => $agoraChannel->id,
+                    'cohost_channel_name' => $agoraChannel->channel_name,
+                    'parent_stream_id' => $parentStream->id,
+                    'parent_channel_name' => $parentStream->channel_name,
+                    'expected_mixed_stream' => $parentStream->id . '_mixed'
+                ]);
+            } else {
+                Log::warning('Parent stream not found for cohost stream', [
+                    'cohost_stream_id' => $agoraChannel->id,
+                    'parent_channel_id' => $agoraChannel->parent_channel_id
+                ]);
+            }
+        }
+
         return [
             'success' => true,
             'message' => 'Yayına katıldınız.',
             'token' => $viewer->token,
-            'channel_name' => $agoraChannel->channel_name,
+            'channel_name' => $channelNameToReturn,
             'agora_channel_id' => $agoraChannel->id,
+            'is_cohost_stream' => $agoraChannel->is_cohost_stream,
+            'parent_channel_id' => $agoraChannel->parent_channel_id,
+            'parent_channel_name' => isset($parentStream) ? $parentStream->id : null, // Return parent's ID, not channel_name
         ];
     }
 
@@ -541,23 +596,29 @@ class AgoraResolver
     {
         try {
             $user = $context->user();
+            \Log::info('🔴 AgoraResolver: likeStream called for channel: ' . $args['agora_channel_id'] . ' by user: ' . $user->id);
 
             /** @var AgoraChannel $stream */
             $stream = AgoraChannel::find($args['agora_channel_id']);
             if (!$stream) {
+                \Log::info('❌ AgoraResolver: Stream not found: ' . $args['agora_channel_id']);
                 return [
                     'success' => false,
                     'message' => 'Yayın bulunamadı.',
                 ];
             }
 
+            \Log::info('✅ AgoraResolver: Stream found, calling service likeStream');
             $this->agoraChannelService->likeStream($stream, $user);
+            \Log::info('✅ AgoraResolver: Service likeStream completed successfully');
 
             return [
                 'success' => true,
                 'message' => 'Yayını beğendiniz.'
             ];
         } catch (Exception $e) {
+            \Log::error('❌ AgoraResolver: likeStream error: ' . $e->getMessage());
+            \Log::error('❌ Stack trace: ' . $e->getTraceAsString());
             return [
                 'success' => false,
                 'message' => $e->getMessage()
@@ -1864,6 +1925,47 @@ class AgoraResolver
             Log::error('Error in streamViewers: ' . $e->getMessage());
             Log::error($e->getTraceAsString());
             return [];
+        }
+    }
+
+    /**
+     * Get a single live stream by ID
+     * This method handles the case where multiple records might exist with the same ID
+     * and returns only the first (most recent) one
+     */
+    public function getLiveStream($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        try {
+            $user = $context->user();
+            $streamId = $args['id'];
+            
+            Log::info('getLiveStream called', [
+                'user_id' => $user->id,
+                'stream_id' => $streamId
+            ]);
+
+            // Query for the stream by ID, ordering by created_at desc to get the most recent one
+            // This handles the case where there might be multiple records with the same ID
+            $stream = AgoraChannel::where('id', $streamId)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$stream) {
+                Log::warning('Stream not found', ['stream_id' => $streamId]);
+                return null;
+            }
+
+            Log::info('Stream found successfully', [
+                'stream_id' => $streamId,
+                'stream_title' => $stream->title,
+                'stream_status' => $stream->status_id
+            ]);
+
+            return $stream;
+        } catch (\Exception $e) {
+            Log::error('Error in getLiveStream: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
+            throw $e;
         }
     }
 }

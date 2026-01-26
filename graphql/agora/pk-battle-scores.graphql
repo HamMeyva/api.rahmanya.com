@@ -1,0 +1,78 @@
+# PK Battle SHOOT hesaplama sistemi için GraphQL şeması
+
+# --- 📌 Start::Response Models ---
+type PKBattleScore {
+    user_id: ID!
+    user: User!
+    current_score: Int!
+    round_score: Int!
+    total_gifts_value: Int!
+    gifts_count: Int!
+    rank: Int!
+}
+
+type PKBattleScores {
+    battle_id: ID!
+    challenger_score: PKBattleScore!
+    opponent_score: PKBattleScore!
+    winner_user_id: ID
+    status: PKBattleStatus!
+    current_round: Int!
+    total_rounds: Int!
+    round_duration_seconds: Int!
+    round_started_at: DateTime
+    round_ends_at: DateTime
+}
+
+type PKBattleRoundEndResponse {
+    success: Boolean!
+    message: String!
+    winner_user_id: ID
+    challenger_score: Int!
+    opponent_score: Int!
+    is_battle_finished: Boolean!
+    battle_winner_id: ID
+}
+
+type PKBattleGiftStatsResponse {
+    success: Boolean!
+    battle_id: ID!
+    user_scores: [PKBattleScore!]!
+    last_updated_at: DateTime!
+}
+# --- 📌 End::Response Models ---
+
+# --- 📌 Start::Input Models ---
+input GetPKBattleScoresInput {
+    battle_id: ID!
+}
+
+input UpdatePKBattleRoundInput {
+    battle_id: ID!
+    round_number: Int!
+    force_end: Boolean
+}
+# --- 📌 End::Input Models ---
+
+# --- 📌 Start::Query ---
+extend type Query {
+    # PK Battle'ın güncel skorlarını al
+    getPKBattleScores(input: GetPKBattleScoresInput!): PKBattleScores
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleScoreResolver@getPKBattleScores")
+        
+    # PK Battle hediye istatistiklerini al
+    getPKBattleGiftStats(battle_id: ID!): PKBattleGiftStatsResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleScoreResolver@getPKBattleGiftStats")
+}
+# --- 📌 End::Query ---
+
+# --- 📌 Start::Mutations ---
+extend type Mutation {
+    # PK Battle devre sonlandır (manuel ya da otomatik)
+    endPKBattleRound(input: UpdatePKBattleRoundInput!): PKBattleRoundEndResponse!
+        @guard(with: ["sanctum"])
+        @field(resolver: "App\\GraphQL\\Resolvers\\Agora\\AgoraPKBattleScoreResolver@endPKBattleRound")
+}
+# --- 📌 End::Mutations ---

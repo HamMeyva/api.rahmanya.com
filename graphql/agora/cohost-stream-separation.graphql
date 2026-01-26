@@ -1,0 +1,110 @@
+# Co-host Stream Separation GraphQL Schema
+
+extend type AgoraChannel {
+    # Co-host stream separation fields
+    isSeparateCohostStream: Boolean!
+    parentStreamId: String
+    cohostChatChannelId: String
+    cohostTotalGifts: Int!
+    cohostTotalCoinsEarned: Int!
+    cohostViewerCount: Int!
+    cohostMaxViewerCount: Int!
+    cohostStreamStatus: String!
+    cohostAnalytics: CohostAnalytics
+    
+    # Relations
+    parentStream: AgoraChannel @belongsTo(relation: "parentStream")
+    cohostStreams: [AgoraChannel!] @hasMany(relation: "cohostStreams")
+}
+
+type CohostAnalytics {
+    totalDuration: Int!
+    totalMessages: Int!
+    totalLikes: Int!
+    avgViewerCount: Float!
+    peakViewerCount: Int!
+    giftBreakdown: [GiftBreakdown!]
+}
+
+type GiftBreakdown {
+    giftId: String!
+    giftName: String!
+    count: Int!
+    totalCoins: Int!
+}
+
+input CreateCohostStreamInput {
+    parentStreamId: String!
+    userId: String!
+    title: String!
+    description: String
+    thumbnailPath: String
+    categoryId: String
+}
+
+input UpdateCohostStreamInput {
+    streamId: String!
+    title: String
+    description: String
+    thumbnailPath: String
+    categoryId: String
+    cohostStreamStatus: String
+}
+
+type CohostStreamResponse {
+    success: Boolean!
+    message: String
+    stream: AgoraChannel
+    chatChannelId: String
+    streamKey: String
+}
+
+extend type Mutation {
+    # Create a separate cohost stream
+    createCohostStream(input: CreateCohostStreamInput!): CohostStreamResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@create")
+    
+    # Update cohost stream
+    updateCohostStream(input: UpdateCohostStreamInput!): CohostStreamResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@update")
+    
+    # End cohost stream
+    endCohostStream(streamId: String!): CohostStreamResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@end")
+
+    # Transition cohost to solo/independent stream (when host leaves)
+    transitionToSoloStream(streamId: String!): CohostStreamResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@transitionToSolo")
+    
+    # Send gift to cohost stream
+    sendGiftToCohostStream(
+        streamId: String!
+        giftId: String!
+        quantity: Int!
+    ): GiftTransactionResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@sendGift")
+}
+
+extend type Query {
+    # Get cohost streams for a parent stream
+    getCohostStreams(parentStreamId: String!): [AgoraChannel!]
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@getCohostStreams")
+    
+    # Get cohost stream details
+    getCohostStreamDetails(streamId: String!): AgoraChannel
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@getDetails")
+    
+    # Get cohost stream analytics
+    getCohostStreamAnalytics(streamId: String!): CohostAnalytics
+        @field(resolver: "App\\GraphQL\\Resolvers\\CohostStreamResolver@getAnalytics")
+}
+
+# Subscriptions temporarily disabled - classes not implemented yet
+# extend type Subscription {
+#     cohostStreamUpdated(streamId: String!): AgoraChannel
+#         @subscription(class: "App\\GraphQL\\Subscriptions\\CohostStreamSubscription")
+#     cohostChatMessage(streamId: String!): AgoraChannelMessage
+#         @subscription(class: "App\\GraphQL\\Subscriptions\\CohostChatSubscription")
+#     cohostGiftReceived(streamId: String!): GiftTransaction
+#         @subscription(class: "App\\GraphQL\\Subscriptions\\CohostGiftSubscription")
+# }

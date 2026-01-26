@@ -27,9 +27,16 @@ Route::prefix('video')->middleware('auth:sanctum')
         Route::post('/{videoId}/{comment}/reply', 'replyToComment');
 
 
+
+
         Route::post('/{videoId}/update', 'updateVideoData');
 
         Route::post('/report-video/{videoId}', 'reportVideo');
 
-
     });
+
+// Seller Video Upload (Server Key Auth)
+Route::prefix('video')->controller(VideoController::class)->group(function () {
+    Route::post('/process-metadata-seller', 'processMetadataWithKey');
+});
+

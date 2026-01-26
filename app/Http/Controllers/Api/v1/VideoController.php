@@ -72,8 +72,8 @@ class VideoController extends Controller
         }
 
         $videos = $query->with(['user'])
-                        ->withCount('video_likes')
-                        ->paginate($perPage, ['*'], 'page', $page);
+            ->withCount('video_likes')
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'success' => true,
@@ -127,10 +127,10 @@ class VideoController extends Controller
         $page = $request->input('page', 1);
 
         $videos = Video::where('is_private', false)
-                       ->orderBy('trending_score', 'desc')
-                       ->with(['user'])
-                       ->withCount('video_likes')
-                       ->paginate($perPage, ['*'], 'page', $page);
+            ->orderBy('trending_score', 'desc')
+            ->with(['user'])
+            ->withCount('video_likes')
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'success' => true,
@@ -213,8 +213,8 @@ class VideoController extends Controller
     public function show(Request $request, $id)
     {
         $video = Video::with(['user', 'video_comments.user', 'video_comments.replies.user'])
-                      ->withCount('video_likes')
-                      ->find($id);
+            ->withCount('video_likes')
+            ->find($id);
 
         if (!$video) {
             return response()->json([
@@ -299,6 +299,136 @@ class VideoController extends Controller
     }
 
     /**
+     * Process video metadata authenticated with Server Key
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function processMetadataWithKey(Request $request)
+    {
+        $serverKey = $request->header('X-Server-Key') ?? $request->input('server_key');
+
+        if ($serverKey !== 'dba2e326d47e1f7ed887724b39aa281e') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Server Key',
+            ], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'video_id' => 'required|string',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'product_id' => 'required|string', // Ensure product_id is provided
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Handle Seller Identity
+        $sellerId = $request->input('seller_id');
+        $sellerName = $request->input('seller_name') ?? 'Seller';
+        $sellerAvatar = $request->input('seller_avatar');
+
+        \Log::info('processMetadataWithKey: Seller identity check', [
+            'seller_id' => $sellerId,
+            'seller_name' => $sellerName,
+            'seller_avatar' => $sellerAvatar,
+        ]);
+
+        if ($sellerId) {
+            $nickname = 'seller_' . $sellerId;
+            $user = User::where('nickname', $nickname)->first();
+
+            if (!$user) {
+                // Create new shadow user for this seller
+                $user = User::create([
+                    'name' => $sellerName,
+                    'nickname' => $nickname,
+                    'email' => $nickname . '@seller.rahmanya.com',
+                    'password' => bcrypt(\Illuminate\Support\Str::random(16)),
+                    'is_approved' => true,
+                    'avatar' => $sellerAvatar,
+                ]);
+                \Log::info('processMetadataWithKey: Created new Shadow Seller User', [
+                    'user_id' => $user->id,
+                    'nickname' => $nickname,
+                    'name' => $sellerName,
+                ]);
+            } else {
+                // Update name/avatar if changed
+                $needsSave = false;
+                if ($user->name !== $sellerName) {
+                    $user->name = $sellerName;
+                    $needsSave = true;
+                }
+                if ($sellerAvatar && $user->avatar !== $sellerAvatar) {
+                    $user->avatar = $sellerAvatar;
+                    $needsSave = true;
+                }
+                if ($needsSave) {
+                    $user->save();
+                }
+                \Log::info('processMetadataWithKey: Found existing Shadow Seller User', [
+                    'user_id' => $user->id,
+                    'nickname' => $nickname,
+                ]);
+            }
+        } else {
+            // Fallback
+            \Log::warning('processMetadataWithKey: No seller_id provided, using fallback user');
+            $user = User::first();
+        }
+
+        $videoId = $request->input('video_id');
+        $metadata = $request->all();
+
+        // Force seller videos to top for testing
+        if ($sellerId) {
+            $metadata['trending_score'] = 1000000;
+        }
+
+        // FORCE is_sport = true for all seller videos (Shopping feed)
+        $metadata['is_sport'] = true;
+
+        // FORCE status = 'finished' for seller videos (so they appear in feed immediately)
+        $metadata['status'] = 'finished';
+
+        \Log::info('processMetadataWithKey: Final metadata before processing', [
+            'video_id' => $videoId,
+            'is_sport' => $metadata['is_sport'] ?? 'not set',
+            'status' => $metadata['status'] ?? 'not set',
+            'trending_score' => $metadata['trending_score'] ?? 'not set',
+            'seller_id' => $sellerId,
+        ]);
+
+        // Ensure we pass the user object expected by videoService
+        $result = $this->videoService->processVideoMetadata($user, $videoId, $metadata);
+
+        if (!$result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'],
+                'error' => $result['error'] ?? null,
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Video metadata processed successfully (Server Key)',
+            'data' => [
+                'video' => new VideoResource($result['data']['video']),
+                'videoId' => $result['data']['videoId'],
+            ],
+        ]);
+    }
+
+    /**
      * Process video metadata after client-side upload to BunnyCDN
      *
      * @param Request $request
@@ -373,8 +503,8 @@ class VideoController extends Controller
 
         $user = $request->user();
         $existingLike = VideoLike::where('user_id', $user->id)
-                                 ->where('video_id', $video->id)
-                                 ->first();
+            ->where('video_id', $video->id)
+            ->first();
 
         if ($existingLike) {
             // Unlike
@@ -633,8 +763,8 @@ class VideoController extends Controller
 
         // Get paginated results
         $videos = $query->with(['user'])
-                        ->withCount('video_likes')
-                        ->paginate($perPage, ['*'], 'page', $page);
+            ->withCount('video_likes')
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'success' => true,

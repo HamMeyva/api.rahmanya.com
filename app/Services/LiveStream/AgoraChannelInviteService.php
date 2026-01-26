@@ -10,6 +10,7 @@ use App\Models\Agora\AgoraChannelInvite;
 use App\Models\Agora\AgoraChannelViewer;
 use App\Services\LiveStream\AgoraChannelService;
 use App\Notifications\LiveStream\AgoraChannelInviteNotification;
+use Illuminate\Support\Facades\DB;
 
 
 class AgoraChannelInviteService
@@ -162,34 +163,57 @@ class AgoraChannelInviteService
 
         //3. Daveti onayla
         $sharedVideoRoomId = null;
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         if ($response === true) {
             \Log::info('AgoraChannelInviteService: Accepting invitation', [
                 'create_separate_stream' => $createSeparateStream,
                 'stream_id' => $stream->id,
                 'user_id' => $authUser->id
             ]);
+<<<<<<< HEAD
             
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
             // Co-host için ayrı yayın oluştur
             if ($createSeparateStream) {
                 try {
                     $cohostStream = $this->createCohostStream($stream, $authUser);
                     $sharedVideoRoomId = $cohostStream->shared_video_room_id;
+<<<<<<< HEAD
                     
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
                     \Log::info('AgoraChannelInviteService: Co-host stream created', [
                         'cohost_stream_id' => $cohostStream->id,
                         'shared_video_room_id' => $sharedVideoRoomId
                     ]);
+<<<<<<< HEAD
                     
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
                     // Ana yayına co-host channel ID'sini ekle
                     $cohostChannelIds = $stream->cohost_channel_ids ?? [];
                     $cohostChannelIds[] = $cohostStream->id;
                     $stream->cohost_channel_ids = $cohostChannelIds;
                     $stream->save();
+<<<<<<< HEAD
                     
                     // Co-host'u ana yayına da guest olarak ekle (video paylaşımı için)
                     $viewer = $this->agoraChannelService->joinStream($stream, $authUser, AgoraChannelViewer::ROLE_GUEST, AgoraTokenService::RoleAttendee);
                     
+=======
+
+                    // Co-host'u ana yayına da guest olarak ekle (video paylaşımı için)
+                    $viewer = $this->agoraChannelService->joinStream($stream, $authUser, AgoraChannelViewer::ROLE_GUEST, AgoraTokenService::RoleAttendee);
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
                     $returnChannel = $cohostStream;
                 } catch (\Exception $e) {
                     \Log::error('AgoraChannelInviteService: Error creating co-host stream', [
@@ -224,14 +248,22 @@ class AgoraChannelInviteService
             'shared_video_room_id' => $response === true ? $sharedVideoRoomId : null,
             'parent_channel_id' => $response === true && $createSeparateStream ? $stream->id : null
         ];
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         \Log::info('AgoraChannelInviteService: Final response', [
             'result' => $result,
             'shared_video_room_id' => $sharedVideoRoomId,
             'response' => $response,
             'createSeparateStream' => $createSeparateStream
         ]);
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         return $result;
     }
 
@@ -330,7 +362,11 @@ class AgoraChannelInviteService
 
         return $uniqueUsers;
     }
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
     /**
      * Co-host için ayrı yayın oluştur
      */
@@ -353,17 +389,26 @@ class AgoraChannelInviteService
         $cohostStream->tags = $parentStream->tags;
         $cohostStream->settings = $parentStream->settings;
         $cohostStream->started_at = now();
+<<<<<<< HEAD
         
         // Co-host özel alanlar
         $cohostStream->is_cohost_stream = true;
         $cohostStream->parent_channel_id = $parentStream->id;
         
+=======
+
+        // Co-host özel alanlar
+        $cohostStream->is_cohost_stream = true;
+        $cohostStream->parent_channel_id = $parentStream->id;
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         // Ana stream'in shared_video_room_id'sini kontrol et ve gerekirse oluştur
         $sharedVideoRoomId = $parentStream->shared_video_room_id ?? $parentStream->channel_name;
         if (!$parentStream->shared_video_room_id) {
             $parentStream->shared_video_room_id = $sharedVideoRoomId;
             $parentStream->save();
         }
+<<<<<<< HEAD
         
         $cohostStream->shared_video_room_id = $sharedVideoRoomId;
         
@@ -372,6 +417,16 @@ class AgoraChannelInviteService
         
         $cohostStream->save();
         
+=======
+
+        $cohostStream->shared_video_room_id = $sharedVideoRoomId;
+
+        // Mode'u co-host olarak işaretle
+        $cohostStream->mode = 'cohost';
+
+        $cohostStream->save();
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         // Co-host'u kendi yayınına host olarak ekle
         AgoraChannelViewer::create([
             'agora_channel_id' => $cohostStream->id,
@@ -380,7 +435,11 @@ class AgoraChannelInviteService
             'status_id' => (int) AgoraChannelViewer::STATUS_ACTIVE,
             'joined_at' => now(),
         ]);
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         // Token oluştur
         $cohostStream->token = $this->generateToken(
             $cohostStream->channel_name,
@@ -413,7 +472,11 @@ class AgoraChannelInviteService
 
         return $cohostStream;
     }
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
     /**
      * Generate channel name for co-host
      */
@@ -421,7 +484,11 @@ class AgoraChannelInviteService
     {
         return \Illuminate\Support\Str::slug($user->nickname) . '_cohost_' . now()->timestamp;
     }
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
     /**
      * Generate stream key for co-host
      */
@@ -429,7 +496,11 @@ class AgoraChannelInviteService
     {
         return \Illuminate\Support\Str::random(10) . '_' . $user->id . '_cohost_' . now()->timestamp;
     }
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
     /**
      * Generate Agora token
      */
@@ -441,7 +512,11 @@ class AgoraChannelInviteService
         $expirationTimeInSeconds = 3600;
         $currentTimestamp = time();
         $expireTimeInSeconds = $currentTimestamp + $expirationTimeInSeconds;
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         return $agoraTokenService->buildTokenWithUid(
             $appId,
             $appCertificate,
@@ -459,8 +534,13 @@ class AgoraChannelInviteService
     private function getMutualConnections(User $user, string $streamerId, int $limit = 10)
     {
         return User::whereHas('followingUsers', function ($query) use ($streamerId) {
+<<<<<<< HEAD
                 $query->where('followed_user_id', $streamerId);
             })
+=======
+            $query->where('followed_user_id', $streamerId);
+        })
+>>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
             ->whereHas('followers', function ($query) use ($user) {
                 $query->where('follower_user_id', $user->id);
             })

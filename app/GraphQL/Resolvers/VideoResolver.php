@@ -538,22 +538,22 @@ class VideoResolver
             }
 
             DB::commit();
-            
+
             // Hedefli cache invalidation - transaction dışında yapılmalı
             try {
                 // Yorum silindiğinde ilgili video önbelleklerini temizle
                 $this->videoService->invalidateVideoCaches($video, 'update', ['comments_count', 'engagement_score']);
-                
+
                 // Yorum önbelleklerini temizle
                 $cacheKey = "video_{$video->id}_main_comments_count";
                 Cache::forget($cacheKey);
-                
+
                 // Yorum yanıtları önbelleğini temizle
                 if ($comment->parent_id) {
                     $parentCacheKey = 'comment_replies_counts_' . md5($comment->parent_id);
                     Cache::forget($parentCacheKey);
                 }
-                
+
                 // Beğeni/beğenmeme önbelleklerini temizle
                 $likesCacheKey = "comment_{$comment->id}_likes_count";
                 $dislikesCacheKey = "comment_{$comment->id}_dislikes_count";
@@ -563,7 +563,7 @@ class VideoResolver
                 // Cache temizleme hatası olsa bile ana işlemi etkilememeli
                 Log::error('Cache invalidation error: ' . $cacheException->getMessage());
             }
-            
+
             return ['success' => true];
         } catch (\Exception $e) {
             DB::rollBack();
@@ -798,24 +798,29 @@ class VideoResolver
     public function getVideoFeed($_, array $args)
     {
         try {
-            $input = $args['input'] ?? [];
-            $user = auth('sanctum')->user();
-
-            $perPage = $input['per_page'] ?? 50;
+            $user = $this->getUser();
+            $options = $args['input'] ?? [];
+            $perPage = $options['per_page'] ?? 50;
 
             $feedService = app(FeedService::class);
-            $feed = $feedService->getFeed($user, 'mixed', $perPage);
-
-            return $feed;
-        } catch (Exception $e) {
-            Log::error('getVideoFeed error', [
+            return $feedService->getFeed($user, 'mixed', $perPage);
+        } catch (\Throwable $e) {
+            Log::error('getVideoFeed hatası', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-
-            throw $e;
+            return [
+                'videos' => [],
+                'ads' => [],
+                'page' => 1,
+                'per_page' => 50,
+                'total' => 0,
+                'has_more' => false,
+                'current_page' => 1,
+            ];
         }
     }
+
 
     /**
      * Takip edilen kullanıcılar ve ilgilenilen takımların video feed'ini getir
@@ -827,25 +832,16 @@ class VideoResolver
             $options = $args['input'] ?? [];
             $perPage = $options['per_page'] ?? 50;
 
-
             $feedService = app(FeedService::class);
             return $feedService->getFeed($user, 'following', $perPage);
-        } catch (Exception $e) {
-            Log::error('getFollowingVideoFeed error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            $page = $args['input']['page'] ?? 1;
-            $perPage = $args['input']['per_page'] ?? 10;
-
+        } catch (\Throwable $e) {
             return [
                 'videos' => [],
-                'page' => $page,
-                'per_page' => $perPage,
+                'page' => 1,
+                'per_page' => 10,
                 'total' => 0,
                 'has_more' => false,
-                'current_page' => (int)$page,
+                'current_page' => 1,
             ];
         }
     }
@@ -862,22 +858,14 @@ class VideoResolver
 
             $feedService = app(FeedService::class);
             return $feedService->getFeed($user, 'sport', $perPage);
-        } catch (Exception $e) {
-            Log::error('getSportVideoFeed hatası', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            $page = $args['input']['page'] ?? 1;
-            $perPage = $args['input']['per_page'] ?? 10;
-
+        } catch (\Throwable $e) {
             return [
                 'videos' => [],
-                'page' => $page,
-                'per_page' => $perPage,
+                'page' => 1,
+                'per_page' => 10,
                 'total' => 0,
                 'has_more' => false,
-                'current_page' => (int)$page,
+                'current_page' => 1,
             ];
         }
     }
@@ -912,7 +900,7 @@ class VideoResolver
                 'per_page' => $perPage,
                 'total' => $total,
                 'has_more' => ($page * $perPage) < $total,
-                'current_page' => (int)$page,
+                'current_page' => (int) $page,
             ];
         } catch (Exception $e) {
             throw new Error("Trend videolar getirilemedi: " . $e->getMessage());
@@ -954,7 +942,7 @@ class VideoResolver
                         'per_page' => $options['per_page'] ?? 10,
                         'total' => 0,
                         'has_more' => false,
-                        'current_page' => (int)($options['page'] ?? 1),
+                        'current_page' => (int) ($options['page'] ?? 1),
                     ];
                 }
             } else {
@@ -974,7 +962,7 @@ class VideoResolver
                 'per_page' => $perPage,
                 'total' => $total,
                 'has_more' => $hasMore,
-                'current_page' => (int)$page,
+                'current_page' => (int) $page,
             ];
         } catch (Exception $e) {
             Log::error('getUserVideos hatası', [
@@ -991,7 +979,7 @@ class VideoResolver
                 'per_page' => $perPage,
                 'total' => 0,
                 'has_more' => false,
-                'current_page' => (int)$page,
+                'current_page' => (int) $page,
             ];
         }
     }
@@ -1043,13 +1031,13 @@ class VideoResolver
                     } elseif (method_exists($result['videos'], 'all')) {
                         $videos = $result['videos']->all();
                     } else {
-                        $videos = (array)$result['videos'];
+                        $videos = (array) $result['videos'];
                     }
                 }
             }
 
             // Filter and format video data, including proper date formatting for GraphQL
-            $videos = array_filter($videos, function($video) use ($user) {
+            $videos = array_filter($videos, function ($video) use ($user) {
                 if (!is_array($video) || !isset($video['id'])) {
                     return false;
                 }
@@ -1107,11 +1095,11 @@ class VideoResolver
 
             return [
                 'videos' => $videos,
-                'page' => (int)$page,
-                'per_page' => (int)$perPage,
-                'total' => (int)$total,
-                'has_more' => (bool)$hasMore,
-                'current_page' => (int)$page
+                'page' => (int) $page,
+                'per_page' => (int) $perPage,
+                'total' => (int) $total,
+                'has_more' => (bool) $hasMore,
+                'current_page' => (int) $page
             ];
         } catch (\Exception $e) {
             \Log::error('getProfileVideos hatası', [
@@ -1125,7 +1113,7 @@ class VideoResolver
                 'per_page' => $args['input']['per_page'] ?? 10,
                 'total' => 0,
                 'has_more' => false,
-                'current_page' => (int)($args['input']['page'] ?? 1)
+                'current_page' => (int) ($args['input']['page'] ?? 1)
             ];
         }
     }
@@ -1178,11 +1166,11 @@ class VideoResolver
 
             return [
                 'videos' => $videos,
-                'page' => (int)$page,
-                'per_page' => (int)$perPage,
-                'total' => (int)$total,
+                'page' => (int) $page,
+                'per_page' => (int) $perPage,
+                'total' => (int) $total,
                 'has_more' => ($page * $perPage) < $total,
-                'current_page' => (int)$page
+                'current_page' => (int) $page
             ];
         } catch (\Exception $e) {
             throw new \GraphQL\Error\Error("Videolar filtrelenirken hata oluştu: " . $e->getMessage());
@@ -1251,9 +1239,44 @@ class VideoResolver
      */
     public function resolveUser($video, $args, $context, $info)
     {
-        $userId = is_array($video) ? $video['user_id'] : $video->user_id;
+        // Handle array or object
+        if (is_array($video)) {
+            $userId = $video['user_id'] ?? null;
+            // Check for embedded user_data in array
+            if (isset($video['user_data']) && !empty($video['user_data'])) {
+                $userData = is_object($video['user_data']) ? $video['user_data'] : (object) $video['user_data'];
+                $user = new User();
+                foreach ($userData as $key => $value) {
+                    $user->$key = $value;
+                }
+                return $user;
+            }
+        } else {
+            $userId = $video->user_id ?? null;
+            // Check for embedded user first (better performance)
+            $embeddedUser = $video->getEmbeddedUser();
+            if ($embeddedUser) {
+                return $embeddedUser;
+            }
+        }
 
-        return User::find($userId);
+        if (!$userId) {
+            Log::warning('resolveUser: Video has no user_id', [
+                'video_id' => is_array($video) ? ($video['id'] ?? 'unknown') : ($video->id ?? 'unknown')
+            ]);
+            return null;
+        }
+
+        $user = User::find($userId);
+
+        if (!$user) {
+            Log::warning('resolveUser: User not found for video', [
+                'user_id' => $userId,
+                'video_id' => is_array($video) ? ($video['id'] ?? 'unknown') : ($video->id ?? 'unknown')
+            ]);
+        }
+
+        return $user;
     }
 
     /**

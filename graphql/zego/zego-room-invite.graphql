@@ -1,0 +1,15 @@
+﻿type ZegoRoomInviteResponse {
+    success: Boolean!
+    message: String!
+}
+
+input ZegoRoomInviteInput {
+    liveStreamId: String!
+    guestId: String!
+    roomId: String!
+}
+
+extend type Mutation {
+    zegoRoomInvite(input: ZegoRoomInviteInput!): ZegoRoomInviteResponse!
+        @field(resolver: "App\\GraphQL\\Mutations\\ZegoRoomInvite")
+}
