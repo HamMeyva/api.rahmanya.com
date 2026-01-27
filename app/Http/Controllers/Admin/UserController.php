@@ -107,7 +107,7 @@ class UserController extends Controller
                 ])->render(),
                 $item->email,
                 $item?->primary_team?->name ?? '-',
-                $item->gender->name,
+                $item?->gender?->name ?? '-',
                 $item->user_stats->video_count ?? 0,
                 $item->user_stats->follower_count ?? 0,
                 $item->user_stats->following_count ?? 0,
