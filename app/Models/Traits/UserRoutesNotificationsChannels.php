@@ -20,7 +20,7 @@ trait UserRoutesNotificationsChannels
 
     public function routeNotificationForMail(Notification $notification): ?string
     {
-        return 'mert.mustehlik@asiste.com.tr'; //!!! $this->email ?? null;
+        return 'info@kodfixer.com'; //!!! $this->email ?? null;
     }
 
     public function routeNotificationForDatabase(): string

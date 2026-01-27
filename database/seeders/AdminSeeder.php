@@ -17,7 +17,7 @@ class AdminSeeder extends Seeder
     {
         if (Schema::hasTable('admins') && Admin::query()->doesntExist()) {
             Admin::query()->create([
-                'email' => 'info@asiste.com.tr',
+                'email' => 'info@kodfixer.com',
                 'first_name' => 'Batuhan',
                 'last_name' => 'Ustun',
                 'password' => 'Batuhan.123',

@@ -11,7 +11,7 @@
         <!--begin::Menu-->
         <ul class="menu menu-gray-600 menu-hover-primary fw-semibold order-1">
             <li class="menu-item">
-                <a href="https://asiste.com.tr" target="_blank" class="menu-link px-2 fw-bold">Asiste Software</a>
+                <a href="https://kodfixer.com" target="_blank" class="menu-link px-2 fw-bold">KodFixer</a>
             </li>
         </ul>
         <!--end::Menu-->

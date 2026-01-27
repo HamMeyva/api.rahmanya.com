@@ -91,7 +91,7 @@ class RoleSeeder extends Seeder
 
         Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'admin']);
 
-        $admin = Admin::where('email', 'info@asiste.com.tr')->first();
+        $admin = Admin::where('email', 'info@kodfixer.com')->first();
         if ($admin) {
             $admin->syncRoles(['Super Admin']);
         }
