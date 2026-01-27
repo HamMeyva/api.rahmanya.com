@@ -63,7 +63,7 @@ class AgoraChannelInvite extends Model
     }
     public function agoraChannel()
     {
-        return AgoraChannel::find($this->agora_channel_id);
+        return $this->belongsTo(AgoraChannel::class, 'agora_channel_id');
     }
     /* end::Relations */
 

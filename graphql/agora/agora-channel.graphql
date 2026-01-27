@@ -65,7 +65,7 @@ type AgoraChannel {
     mode: LiveStreamMode!
     max_participants: Int!
     is_gifts_enabled: Boolean!
-    pkBattle: PKBattle @hasOne
+    # pkBattle: PKBattle @hasOne
     participants: [LiveStreamParticipant!]! @method(name: "participants")
     zego_room_id: String
     zego_app_id: String
@@ -151,7 +151,7 @@ type LiveStream {
     mode: LiveStreamMode!
     max_participants: Int!
     is_gifts_enabled: Boolean!
-    pkBattle: PKBattle @hasOne
+    # pkBattle: PKBattle @hasOne
     participants: [LiveStreamParticipant!]! @method(name: "participants")
     ended_at: DateTime
     created_at: DateTime!

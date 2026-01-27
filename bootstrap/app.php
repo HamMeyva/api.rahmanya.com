@@ -106,6 +106,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'can.interact' => \App\Http\Middleware\CanInteract::class,
         ]);
 
         $middleware->redirectGuestsTo(function (Request $request) {
