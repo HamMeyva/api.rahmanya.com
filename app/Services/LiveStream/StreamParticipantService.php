@@ -16,29 +16,17 @@ class StreamParticipantService
             throw new \RuntimeException('Stream multi-guest mode\'da değil');
         }
 
-<<<<<<< HEAD
-        $activeCount = LiveStreamParticipant::where('live_stream_id', (string)$channel->id)
-            ->where('is_active', true)
-            ->count();
-
-        if ($activeCount >= (int)($channel->max_participants ?? 1)) {
-=======
         $activeCount = LiveStreamParticipant::where('live_stream_id', (string) $channel->id)
             ->where('is_active', true)
             ->count();
 
         if ($activeCount >= (int) ($channel->max_participants ?? 1)) {
->>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
             throw new \RuntimeException('Maksimum katılımcı sayısı aşıldı');
         }
 
         $participant = LiveStreamParticipant::updateOrCreate(
             [
-<<<<<<< HEAD
-                'live_stream_id' => (string)$channel->id,
-=======
                 'live_stream_id' => (string) $channel->id,
->>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
                 'user_id' => $userId,
             ],
             [
@@ -48,11 +36,7 @@ class StreamParticipantService
             ]
         );
 
-<<<<<<< HEAD
-        Event::dispatch(new \App\Events\LiveStream\ViewerJoined((string)$channel->id, $userId));
-=======
         Event::dispatch(new \App\Events\LiveStream\ViewerJoined((string) $channel->id, $userId));
->>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
 
         return $participant;
     }
@@ -61,20 +45,12 @@ class StreamParticipantService
     {
         $channel = AgoraChannel::where('id', $streamId)->orWhere('channel_name', $streamId)->firstOrFail();
 
-<<<<<<< HEAD
-        $affected = LiveStreamParticipant::where('live_stream_id', (string)$channel->id)
-=======
         $affected = LiveStreamParticipant::where('live_stream_id', (string) $channel->id)
->>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
             ->where('user_id', $userId)
             ->update(['is_active' => false, 'left_at' => now()]);
 
         if ($affected > 0) {
-<<<<<<< HEAD
-            Event::dispatch(new \App\Events\LiveStream\ViewerLeft((string)$channel->id, $userId));
-=======
             Event::dispatch(new \App\Events\LiveStream\ViewerLeft((string) $channel->id, $userId));
->>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         }
 
         return $affected > 0;
@@ -84,27 +60,16 @@ class StreamParticipantService
     {
         $channel = AgoraChannel::where('id', $streamId)->orWhere('channel_name', $streamId)->firstOrFail();
 
-<<<<<<< HEAD
-        $participant = LiveStreamParticipant::where('live_stream_id', (string)$channel->id)
-=======
         $participant = LiveStreamParticipant::where('live_stream_id', (string) $channel->id)
->>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
             ->where('user_id', $userId)
             ->firstOrFail();
 
         $updates = [];
         if (array_key_exists('audioEnabled', $settings)) {
-<<<<<<< HEAD
-            $updates['audio_enabled'] = (bool)$settings['audioEnabled'];
-        }
-        if (array_key_exists('videoEnabled', $settings)) {
-            $updates['video_enabled'] = (bool)$settings['videoEnabled'];
-=======
             $updates['audio_enabled'] = (bool) $settings['audioEnabled'];
         }
         if (array_key_exists('videoEnabled', $settings)) {
             $updates['video_enabled'] = (bool) $settings['videoEnabled'];
->>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
         }
 
         if (!empty($updates)) {
@@ -114,8 +79,3 @@ class StreamParticipantService
         return $participant->fresh();
     }
 }
-<<<<<<< HEAD
-
-
-=======
->>>>>>> d99dd231025c087182f47d41e0156f1f88ac3d42
