@@ -89,6 +89,7 @@ class AgoraChannel extends Model
         return [
             'is_online' => 'boolean',
             'is_featured' => 'boolean',
+
             'started_at' => DatetimeTz::class,
             'ended_at' => DatetimeTz::class,
             'is_challenge_active' => 'boolean',
@@ -249,7 +250,7 @@ class AgoraChannel extends Model
      */
     public function getIsOnlineAttribute(): bool
     {
-        return (bool)($this->attributes['is_online'] ?? false);
+        return (bool) ($this->attributes['is_online'] ?? false);
     }
 
     /**
@@ -259,7 +260,7 @@ class AgoraChannel extends Model
      */
     public function getIsFeaturedAttribute(): bool
     {
-        return (bool)($this->attributes['is_featured'] ?? false);
+        return (bool) ($this->attributes['is_featured'] ?? false);
     }
 
     public function scopeActive($query)
@@ -278,14 +279,14 @@ class AgoraChannel extends Model
         return $query->where('category_id', $categoryId);
     }
 
-    public function getStartedAt(): Attribute
+    public function formattedStartedAt(): Attribute
     {
         return Attribute::get(
             fn() => $this->started_at?->translatedFormat((new CommonHelper)->defaultDateTimeFormat(true))
         );
     }
 
-    public function getEndedAt(): Attribute
+    public function formattedEndedAt(): Attribute
     {
         return Attribute::get(
             fn() => $this->ended_at?->translatedFormat((new CommonHelper)->defaultDateTimeFormat(true))
