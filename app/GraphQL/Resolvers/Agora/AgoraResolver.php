@@ -168,18 +168,21 @@ class AgoraResolver
             ]);
 
             // Get all active livestreams
-            $query = AgoraChannel::where('status_id', AgoraChannel::STATUS_LIVE)
-                ->where('is_online', true)
-                ->orderBy('viewer_count', 'desc'); // Sort by viewer count
-
-            // Pagination parameters
-            $page = $args['page'] ?? 1;
-            $limit = $args['limit'] ?? 20;
-
-            Log::info('Fetching livestreams sorted by viewer count');
-
             // Execute query and return paginated results
-            return $query->paginate($limit, ['*'], 'page', $page)->items();
+            // Use service method directly to ensure consistent logic
+            $filters = [
+                'page' => $args['page'] ?? 1,
+                'limit' => $args['limit'] ?? 20,
+                'order_by' => 'viewer_count',
+                'order_dir' => 'desc',
+                'include_cohost_streams' => true // Varsayılan olarak cohost yayınları da listede görünür
+            ];
+
+            Log::info('DEBUG: listLiveStreams calling getActiveStreams', ['filters' => $filters]);
+            $result = $this->agoraChannelService->getActiveStreams($filters)->items();
+            Log::info('DEBUG: listLiveStreams returned items count: ' . count($result));
+
+            return $result;
         } catch (Exception $e) {
             Log::error('Error in listLiveStreams: ' . $e->getMessage());
             Log::error($e->getTraceAsString());
@@ -442,14 +445,14 @@ class AgoraResolver
 
         // Call the service method and check if successful
         $success = $this->agoraChannelService->goLive($stream);
-        
+
         if (!$success) {
             throw new Exception('Failed to start live stream');
         }
 
         // Refresh the stream from database to get updated data
         $stream->refresh();
-        
+
         return $stream;
     }
 
@@ -642,9 +645,11 @@ class AgoraResolver
 
             /** @var AgoraChannel $stream */
             $stream = AgoraChannel::find($args['agora_channel_id']);
-            if (!$stream) throw new Exception('Yayın bulunamadı.');
+            if (!$stream)
+                throw new Exception('Yayın bulunamadı.');
 
-            if ($stream->user_id != $user->id) throw new Exception('Yayını ekran görüntüsü alamazsınız.');
+            if ($stream->user_id != $user->id)
+                throw new Exception('Yayını ekran görüntüsü alamazsınız.');
 
 
             $media = $args['media'];
@@ -1202,9 +1207,9 @@ class AgoraResolver
             // Check if user is authorized (stream owner or moderator)
             $isAuthorized = $user->id === $stream->user_id ||
                 AgoraChannelViewer::where('agora_channel_id', $stream->id)
-                ->where('user_id', $user->id)
-                ->where('is_moderator', true)
-                ->exists();
+                    ->where('user_id', $user->id)
+                    ->where('is_moderator', true)
+                    ->exists();
 
             if (!$isAuthorized) {
                 Log::warning('Unauthorized access to banViewer', [
@@ -1294,9 +1299,9 @@ class AgoraResolver
             // Check if user is authorized (stream owner or moderator)
             $isAuthorized = $user->id === $stream->user_id ||
                 AgoraChannelViewer::where('agora_channel_id', $stream->id)
-                ->where('user_id', $user->id)
-                ->where('is_moderator', true)
-                ->exists();
+                    ->where('user_id', $user->id)
+                    ->where('is_moderator', true)
+                    ->exists();
 
             if (!$isAuthorized) {
                 Log::warning('Unauthorized access to pinMessage', [
@@ -1369,9 +1374,9 @@ class AgoraResolver
             // Check if user is authorized (stream owner or moderator)
             $isAuthorized = $user->id === $stream->user_id ||
                 AgoraChannelViewer::where('agora_channel_id', $stream->id)
-                ->where('user_id', $user->id)
-                ->where('is_moderator', true)
-                ->exists();
+                    ->where('user_id', $user->id)
+                    ->where('is_moderator', true)
+                    ->exists();
 
             if (!$isAuthorized) {
                 Log::warning('Unauthorized access to unpinMessage', [
@@ -1456,9 +1461,9 @@ class AgoraResolver
             // Check if user is authorized (stream owner or moderator)
             $isAuthorized = $user->id === $stream->user_id ||
                 AgoraChannelViewer::where('agora_channel_id', $stream->id)
-                ->where('user_id', $user->id)
-                ->where('is_moderator', true)
-                ->exists();
+                    ->where('user_id', $user->id)
+                    ->where('is_moderator', true)
+                    ->exists();
 
             if (!$isAuthorized) {
                 Log::warning('Unauthorized access to blockUserFromLiveStreamChat', [
@@ -1547,9 +1552,9 @@ class AgoraResolver
             // Check if user is authorized (stream owner or moderator)
             $isAuthorized = $user->id === $stream->user_id ||
                 AgoraChannelViewer::where('agora_channel_id', $stream->id)
-                ->where('user_id', $user->id)
-                ->where('is_moderator', true)
-                ->exists();
+                    ->where('user_id', $user->id)
+                    ->where('is_moderator', true)
+                    ->exists();
 
             if (!$isAuthorized) {
                 Log::warning('Unauthorized access to unblockUserFromLiveStreamChat', [
@@ -1938,7 +1943,7 @@ class AgoraResolver
         try {
             $user = $context->user();
             $streamId = $args['id'];
-            
+
             Log::info('getLiveStream called', [
                 'user_id' => $user->id,
                 'stream_id' => $streamId
