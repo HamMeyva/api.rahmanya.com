@@ -27,8 +27,8 @@ class AgoraChannelMessageResource extends JsonResource
             'has_sticker' => (bool) $this->has_sticker,
             'sticker_data' => $this->when($this->has_sticker, $this->sticker_data),
             'parent_message_id' => $this->parent_message_id,
-            'created_at' => isset($this->created_at) ? (is_numeric($this->created_at) ? \Carbon\Carbon::createFromTimestampMs($this->created_at) : new \DateTime($this->created_at)) : null,
-            'updated_at' => isset($this->updated_at) ? new \DateTime($this->updated_at) : null,
+            'created_at' => isset($this->created_at) ? ($this->created_at instanceof \MongoDB\BSON\UTCDateTime ? $this->created_at->toDateTime() : (is_numeric((string) $this->created_at) ? \Carbon\Carbon::createFromTimestampMs((string) $this->created_at) : new \DateTime($this->created_at))) : null,
+            'updated_at' => isset($this->updated_at) ? ($this->updated_at instanceof \MongoDB\BSON\UTCDateTime ? $this->updated_at->toDateTime() : (is_numeric((string) $this->updated_at) ? \Carbon\Carbon::createFromTimestampMs((string) $this->updated_at) : new \DateTime($this->updated_at))) : null,
             'user' => $this->user_data ? new UserBasicResource((object) $this->user_data) : null,
             'replies_count' => $this->when(isset($this->replies_count), $this->replies_count),
         ];
