@@ -182,6 +182,28 @@ class AgoraResolver
             $result = $this->agoraChannelService->getActiveStreams($filters)->items();
             Log::info('DEBUG: listLiveStreams returned items count: ' . count($result));
 
+            if (count($result) > 0) {
+                $f = $result[0];
+                Log::info('DEBUG V2: First Stream Class: ' . get_class($f));
+                Log::info('DEBUG V2: First Stream Attributes: ' . json_encode($f->getAttributes()));
+                Log::info('DEBUG V2: Check Int Fields: ' . json_encode([
+                    'viewer_count' => $f->viewer_count,
+                    'max_viewer_count' => $f->max_viewer_count,
+                    'status_id' => $f->status_id,
+                    'is_online' => $f->is_online,
+                    'total_likes' => $f->total_likes,
+                    'total_gifts' => $f->total_gifts
+                ]));
+
+                try {
+                    // Check specific accessors that might cause issues
+                    // We use getAttribute to simulate model access
+                    Log::info('DEBUG V2: Accessor Check started_at: ' . $f->getAttribute('started_at'));
+                } catch (\Exception $e) {
+                    Log::info('DEBUG V2: Accessor Check Error: ' . $e->getMessage());
+                }
+            }
+
             return $result;
         } catch (Exception $e) {
             Log::error('Error in listLiveStreams: ' . $e->getMessage());
