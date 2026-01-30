@@ -1,7 +1,20 @@
+# Country Type for GraphQL
+
 type Country {
-  id: ID!
-  name: String!
-  native: String!
-  code: String!
-  currency: String!
+    id: ID!
+    name: String!
+    iso2: String
+    iso3: String
+    native: String
+    phone_code: String
+}
+
+type CountriesResponse {
+    success: Boolean!
+    countries: [Country!]!
+}
+
+extend type Query {
+    fetchAllCountries: CountriesResponse!
+        @field(resolver: "App\\GraphQL\\Resolvers\\CountryResolver@fetchAllCountries")
 }

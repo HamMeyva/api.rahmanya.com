@@ -91,7 +91,8 @@ input RegisterInput {
     password: String!
     password_confirmation: String!
     fcm_token: String!
-    primary_team_id: Int!
+    country_id: Int!
+    primary_team_id: Int
     user_teams: [Int!]
     preferred_language_id: Int!
     device_type: String!

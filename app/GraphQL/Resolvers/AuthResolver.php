@@ -224,7 +224,8 @@ class AuthResolver
             'phone' => 'required|regex:/^[0-9]{10,15}$/',
             'password' => 'required|string|min:8|confirmed',
             'fcm_token' => 'required|string',
-            'primary_team_id' => 'required|exists:teams,id',
+            'country_id' => 'required|exists:countries,id',
+            'primary_team_id' => 'nullable|exists:teams,id',
             'user_teams' => 'nullable|array',
             'preferred_language_id' => 'required|exists:languages,id',
             'device_type' => 'required|string|max:255',
@@ -241,7 +242,7 @@ class AuthResolver
 
         // Step 1: Create user without transaction
         try {
-            $user = User::create([
+            $userData = [
                 'name' => $input['name'],
                 'surname' => $input['surname'],
                 'nickname' => $input['nickname'],
@@ -251,10 +252,17 @@ class AuthResolver
                 'email' => $input['email'],
                 'password' => $input['password'],
                 'fcm_token' => $input['fcm_token'],
-                'primary_team_id' => $input['primary_team_id'],
+                'country_id' => $input['country_id'],
                 'preferred_language_id' => $input['preferred_language_id'],
                 'agora_uid' => $this->generateUniqueAgoraUid(),
-            ]);
+            ];
+
+            // primary_team_id opsiyonel
+            if (isset($input['primary_team_id'])) {
+                $userData['primary_team_id'] = $input['primary_team_id'];
+            }
+
+            $user = User::create($userData);
         } catch (Exception $e) {
             throw new Exception('Kullanıcı oluşturma başarısız: ' . $e->getMessage());
         }
@@ -848,7 +856,7 @@ class AuthResolver
             Redis::del($key);
             $socketCountKey = "active-socket-count:user:{$userId}";
             Redis::decr($socketCountKey);
-            
+
             return [
                 'success' => false,
                 'message' => 'Başlangıç zamanı bulunamadı.'

@@ -19,6 +19,7 @@ type User {
     avatar: String
     preferred_language_id: Int
     primary_team_id: Int
+    country_id: Int
     agora_uid: Int
     latitude: Float
     longitude: Float
@@ -54,6 +55,7 @@ type User {
 
     # Relationships
     primary_team: Team @hasOne(relation: "primary_team")
+    country: Country @belongsTo
     user_teams: [Team!] @belongsToMany(relation: "user_teams")
     teams: [Team!] @belongsToMany(relation: "user_teams")
 }
