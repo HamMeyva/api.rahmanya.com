@@ -19,7 +19,7 @@ class UserBasicResource extends JsonResource
             'nickname' => $this->nickname,
             'avatar' => $this->avatar,
             'bio' => $this->bio,
-            'followers_count' => $this->when(isset($this->followers_count), $this->followers_count),
+            'followers_count' => data_get($this->resource, 'followers_count'),
             'is_verified' => (bool) $this->is_verified,
             'created_at' => $this->created_at ? $this->created_at->toIso8601String() : null,
         ];
