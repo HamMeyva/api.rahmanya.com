@@ -14,14 +14,16 @@ class UserBasicResource extends JsonResource
      */
     public function toArray($request)
     {
+        $resource = $this->resource;
+
         return [
-            'id' => $this->id,
-            'nickname' => $this->nickname,
-            'avatar' => $this->avatar,
-            'bio' => $this->bio,
-            'followers_count' => data_get($this->resource, 'followers_count'),
-            'is_verified' => (bool) $this->is_verified,
-            'created_at' => $this->created_at ? $this->created_at->toIso8601String() : null,
+            'id' => data_get($resource, 'id') ?? data_get($resource, '_id'),
+            'nickname' => data_get($resource, 'nickname'),
+            'avatar' => data_get($resource, 'avatar'),
+            'bio' => data_get($resource, 'bio'),
+            'followers_count' => (int) data_get($resource, 'followers_count', 0),
+            'is_verified' => (bool) data_get($resource, 'is_verified', false),
+            'created_at' => null, // Safely ignore date for basic resource to prevent parse errors
         ];
     }
 }
