@@ -297,23 +297,6 @@ class AuthResolver
             // Continue without failing
         }
 
-        // Step 5: Follow oldest users
-        try {
-            $oldestUsers = DB::table('users')
-                ->where('id', '!=', $user->id) // Kendini takip etmesini önlemek için
-                ->orderBy('created_at')
-                ->take(2)
-                ->pluck('id')
-                ->toArray();
-
-            if (!empty($oldestUsers)) {
-                $user->follows()->sync($oldestUsers);
-            }
-        } catch (Exception $e) {
-            Log::error('Kullanıcı takip işlemi başarısız: ' . $e->getMessage());
-            // Continue without failing
-        }
-
         return [
             'access_token' => $token,
             'token_type' => 'bearer',
