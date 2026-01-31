@@ -68,6 +68,7 @@ Route::group(['middleware' => 'auth:admin'], routes: function () {
 
         Route::post('/{id}/account-approve', 'accountApprove')->name('account.approve');
         Route::post('/{id}/account-reject', 'accountReject')->name('account.reject');
+        Route::post('/destroy/{id?}', 'destroy')->name('destroy');
 
 
         Route::group(['prefix' => '/{userId}/sessions', 'as' => 'sessions.'], routes: function () {

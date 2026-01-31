@@ -139,6 +139,29 @@ class UserController extends Controller
         return view('admin.pages.users.show', compact('user'));
     }
 
+    /**
+     * Kullanıcıyı sil (soft delete)
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return response()->json([
+                'message' => "Kullanıcı bulunamadı.",
+            ], 404);
+        }
+
+        // İlişkili verileri temizle
+        $user->tokens()->delete(); // Tüm oturumları sonlandır
+
+        // Soft delete uygula
+        $user->delete();
+
+        return response()->json([
+            'message' => "Kullanıcı başarıyla silindi.",
+        ]);
+    }
+
     public function profileUpdate(ProfileUpdateRequest $request, $id): JsonResponse
     {
         $user = User::withTrashed()->find($id);
@@ -200,7 +223,8 @@ class UserController extends Controller
         ]);
 
         $user = User::withTrashed()->find($id);
-        if (!$user) throw new NotFoundHttpException();
+        if (!$user)
+            throw new NotFoundHttpException();
 
         $user->update([
             $request->input('name') => $request->input('is_checked')
