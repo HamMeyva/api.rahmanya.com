@@ -114,6 +114,7 @@ class UserController extends Controller
                 "<i class='fa fa-{$frozenIcon}'></i>",
                 "<i class='fa fa-{$privateIcon}'></i>",
                 view('components.admin.action-buttons', [
+                    'itemId' => $item->id,
                     'showView' => true,
                     'viewUrl' => route('admin.users.show', ['id' => $item->id]),
                     'showDelete' => true,

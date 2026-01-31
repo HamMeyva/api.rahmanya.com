@@ -157,7 +157,7 @@
 
             // Delete button handler
             $(document).on('click', '.deleteBtn', function () {
-                const itemId = $(this).data('item-id');
+                const itemId = $(this).data('id');
                 const actionUrl = "{{ route('admin.users.destroy', ['id' => ':id']) }}".replace(':id', itemId);
 
                 Swal.fire({
