@@ -50,21 +50,21 @@
         verilerin nasıl silineceğini anlatır.
     </p>
 
-    <h2>Yöntem 1 — Uygulama içinden</h2>
+    <h2>Nasıl talep edilir</h2>
     <ol>
-        <li>Rahmanya uygulamasını açın ve hesabınıza giriş yapın.</li>
-        <li>Sağ alttaki <strong>Profil</strong> sekmesine dokunun.</li>
-        <li><strong>Ayarlar</strong> menüsünü açın.</li>
-        <li><strong>Hesap ayarları</strong> bölümüne girin.</li>
-        <li><strong>Hesabı sil</strong> seçeneğine dokunun ve onaylayın.</li>
+        <li>
+            Hesabınıza kayıtlı e-posta adresinden
+            <a href="mailto:destek@shoot90.com?subject=Rahmanya%20hesap%20silme%20talebi">destek@shoot90.com</a>
+            adresine <strong>"Rahmanya hesap silme talebi"</strong> konulu bir e-posta gönderin.
+        </li>
+        <li>E-postada Rahmanya <strong>kullanıcı adınızı</strong> belirtin.</li>
+        <li>
+            Talebin size ait olduğunu doğrulamak için kayıtlı e-posta adresinize bir onay mesajı
+            göndeririz; onayladıktan sonra silme işlemi başlar.
+        </li>
     </ol>
-
-    <h2>Yöntem 2 — E-posta ile</h2>
     <p>
-        Uygulamaya erişemiyorsanız, hesabınıza kayıtlı e-posta adresinden
-        <a href="mailto:destek@shoot90.com?subject=Rahmanya%20hesap%20silme%20talebi">destek@shoot90.com</a>
-        adresine "Rahmanya hesap silme talebi" konulu bir e-posta gönderin. Talebinizi
-        doğruladıktan sonra en geç <strong>30 gün</strong> içinde hesabınızı sileriz.
+        Talebinizi doğruladıktan sonra hesabınızı en geç <strong>30 gün</strong> içinde sileriz.
     </p>
 
     <div class="box">
