@@ -22,6 +22,18 @@ Route::get('/', function () {
     return '--';
 });
 
+/*
+ * Rahmanya yasal sayfalari. Uygulama magazalarinin (App Store / Google Play)
+ * zorunlu tuttugu, kimlik dogrulamasi gerektirmeyen genel erisime acik sayfalar.
+ */
+Route::get('/gizlilik', function () {
+    return view('legal.privacy', ['updated' => '3 Agustos 2026']);
+})->name('legal.privacy.tr');
+
+Route::get('/privacy', function () {
+    return redirect()->route('legal.privacy.tr');
+});
+
 
 Route::get('/redis-keys', function () {
     $result = [];
