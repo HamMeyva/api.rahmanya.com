@@ -34,6 +34,14 @@ Route::get('/privacy', function () {
     return redirect()->route('legal.privacy.tr');
 });
 
+Route::get('/hesap-silme', function () {
+    return view('legal.delete-account');
+})->name('legal.delete-account.tr');
+
+Route::get('/delete-account', function () {
+    return redirect()->route('legal.delete-account.tr');
+});
+
 
 Route::get('/redis-keys', function () {
     $result = [];
